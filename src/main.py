@@ -1,5 +1,6 @@
 import argparse
 import cv2
+import numpy as np
 
 from data_ingestion.streamer import Streamer
 from preprocessing.preprocessor import Preprocessor
