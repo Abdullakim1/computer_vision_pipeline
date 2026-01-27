@@ -1,0 +1,18 @@
+# Core Libraries
+numpy
+opencv-python
+
+# Deep Learning Framework
+onnxruntime
+ultralytics
+
+# For post-processing, we might need torch later
+# torch
+# torchvision
+
+# API and Deployment
+# fastapi
+# uvicorn
+
+# Augmentations
+# albumentations
