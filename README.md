@@ -25,3 +25,8 @@ computer-vision-pipeline/
 │   └── main.py
 └── ...
 ```
+Primary webcam
+python3 src/main.py --source 0
+
+local video
+python3 src/main.py --source /path/video.mp4

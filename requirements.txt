@@ -5,6 +5,8 @@ opencv-python
 # Deep Learning Framework
 onnxruntime
 ultralytics
+filterpy
+scipy
 
 # For post-processing, we might need torch later
 # torch

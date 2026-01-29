@@ -80,8 +80,8 @@ class InferenceEngine:
         for i in indices:
             detections.append({
                 'box': boxes[i],
-                'score': scores[i],
-                'class_id': class_ids[i]
+                'score': float(scores[i]),
+                'class_id': int(class_ids[i])
             })
 
         return detections
