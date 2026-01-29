@@ -6,6 +6,8 @@ from data_ingestion.streamer import Streamer
 from preprocessing.preprocessor import Preprocessor
 from inference.engine import InferenceEngine
 from postprocessing.visualizer import draw_detections
+from postprocessing.tracker import Sort
+
 
 def main():
     """Main function to run the computer vision pipeline."""
@@ -22,6 +24,7 @@ def main():
 
         preprocessor = Preprocessor(output_size=(640, 640))
         engine = InferenceEngine(model_path='models/yolov8n.onnx', confidence_threshold=0.3)
+        tracker = Sort()
 
         with Streamer(source) as stream:
             while True:  # Loop indefinitely until 'q' is pressed or stream ends
@@ -40,11 +43,30 @@ def main():
 
                 # 3. Inference
                 detections = engine.infer(processed_frame_rgb)
-                # 4. Post-processing & Visualization
-                if detections:
-                    print(f"Detected {len(detections)} objects: {detections}")
-                    # Draw the detections on the display frame
-                    display_frame = draw_detections(display_frame, detections)
+
+                # 4. Tracking
+                # Convert detections to the format expected by the tracker
+                dets_for_tracking = np.array([[det['box'][0], det['box'][1], det['box'][2], det['box'][3], det['score']] for det in detections], dtype=np.float32)
+                if dets_for_tracking.size == 0:
+                    dets_for_tracking = np.empty((0, 5), dtype=np.float32)
+                tracked_objects = tracker.update(dets_for_tracking)
+
+                # Convert tracker output back to the format expected by the visualizer
+                # Propagate class_id to tracked_detections by matching boxes
+                tracked_detections = []
+                for x1, y1, x2, y2, track_id in tracked_objects:
+                    # Find the detection with the closest box (exact match or highest IoU)
+                    class_id = None
+                    for det in detections:
+                        if [int(det['box'][0]), int(det['box'][1]), int(det['box'][2]), int(det['box'][3])] == [int(x1), int(y1), int(x2), int(y2)]:
+                            class_id = det.get('class_id', None)
+                            break
+                    tracked_detections.append({'box': [int(x1), int(y1), int(x2), int(y2)], 'track_id': int(track_id), 'class_id': class_id})
+
+                # 5. Post-processing & Visualization
+                if tracked_detections:
+                    # Draw the tracked detections on the display frame
+                    display_frame = draw_detections(display_frame, tracked_detections)
 
                 # Display the final frame with detections
                 cv2.imshow('Computer Vision Pipeline', display_frame)

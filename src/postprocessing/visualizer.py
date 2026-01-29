@@ -20,6 +20,7 @@ COCO_CLASSES = [
 
 CLASS_NAMES = {i: (name, tuple(map(int, COLORS[i]))) for i, name in enumerate(COCO_CLASSES)}
 
+
 def draw_detections(frame, detections):
     """
     Draws bounding boxes and labels on a frame based on model detections.
@@ -33,8 +34,8 @@ def draw_detections(frame, detections):
     """
     for det in detections:
         box = det['box']
-        score = det['score']
-        class_id = det['class_id']
+        track_id = det.get('track_id', None)
+        class_id = det.get('class_id', None)
 
         # Get class name and color, with a fallback for unknown classes
         name, color = CLASS_NAMES.get(class_id, ('unknown', (255, 255, 255)))
@@ -46,7 +47,7 @@ def draw_detections(frame, detections):
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
         # Prepare the label text
-        label = f'{name}: {score:.2f}'
+        label = f'ID {track_id} {name}' if track_id is not None else f'{name}'
 
         # Calculate text size to draw a background rectangle for the label
         (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)

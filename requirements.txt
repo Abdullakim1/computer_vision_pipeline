@@ -7,6 +7,9 @@ onnxruntime
 ultralytics
 filterpy
 scipy
+open_clip_torch
+fastapi
+uvicorn
 
 # For post-processing, we might need torch later
 # torch

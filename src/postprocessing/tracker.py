@@ -123,6 +123,7 @@ class Sort:
         return np.empty((0,5))
 
     def associate_detections_to_trackers(self, detections, trackers, iou_threshold):
+
         if len(trackers) == 0:
             return np.empty((0,2), dtype=int), np.arange(len(detections)), np.empty((0,5), dtype=int)
         
