@@ -1,20 +1,19 @@
 # Core Libraries
 numpy
+torch
+Pillow
 opencv-python
 
 # Deep Learning Framework
 onnxruntime
 ultralytics
+open_clip_torch
+
+# Tracking
 filterpy
 scipy
 
-# For post-processing, we might need torch later
-# torch
-# torchvision
-
 # API and Deployment
-# fastapi
-# uvicorn
-
-# Augmentations
+fastapi
+uvicorn
 # albumentations

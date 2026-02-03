@@ -26,35 +26,43 @@ def draw_detections(frame, detections):
 
     Args:
         frame (np.ndarray): The frame to draw on. Should be a uint8 BGR image.
-        detections (list): A list of detections from the inference engine.
+        detections (list): A list of detection dictionaries.
 
     Returns:
         np.ndarray: The frame with detections drawn on it.
     """
     for det in detections:
-        box = det['box']
-        score = det['score']
-        class_id = det['class_id']
+        box = det.get('box')
+        if not box or len(box) != 4:
+            continue
 
-        # Get class name and color, with a fallback for unknown classes
-        name, color = CLASS_NAMES.get(class_id, ('unknown', (255, 255, 255)))
+        score = det.get('score')
+        class_id = det.get('class_id')
+        track_id = det.get('track_id')
+        similarity = det.get('similarity')
 
-        # Bounding box coordinates must be integers for drawing
+        if class_id is not None and class_id in CLASS_NAMES:
+            name, color = CLASS_NAMES[class_id]
+        else:
+            name, color = 'object', (0, 255, 0)
+
         x1, y1, x2, y2 = map(int, box)
-
-        # Draw the bounding box rectangle on the frame
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
-        # Prepare the label text
-        label = f'{name}: {score:.2f}'
+        label_parts = []
+        if track_id is not None:
+            label_parts.append(f"ID {track_id}")
+        if name:
+            label_parts.append(name)
+        if score is not None:
+            label_parts.append(f"{score:.2f}")
+        if similarity is not None:
+            label_parts.append(f"sim {similarity:.2f}")
 
-        # Calculate text size to draw a background rectangle for the label
+        label = " | ".join(label_parts) if label_parts else "object"
+
         (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-
-        # Draw a filled rectangle behind the text for better readability
         cv2.rectangle(frame, (x1, y1 - text_height - baseline), (x1 + text_width, y1), color, -1)
-
-        # Put the label text on the background rectangle
         cv2.putText(frame, label, (x1, y1 - baseline), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     return frame
