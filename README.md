@@ -71,3 +71,6 @@ visual-search-pipeline/
 ├── query_images/            # Storage for user-uploaded targets
 ├── requirements.txt         # Dependencies
 └── README.md
+
+---
+*Created by [Abdullakim](https://github.com/Abdullakim1)*
