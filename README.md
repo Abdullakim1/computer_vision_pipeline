@@ -72,5 +72,6 @@ visual-search-pipeline/
 ├── requirements.txt         # Dependencies
 └── README.md
 
+```
 ---
 *Created by [Abdullakim](https://github.com/Abdullakim1)*
