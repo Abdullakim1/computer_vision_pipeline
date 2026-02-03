@@ -11,7 +11,7 @@ The system allows users to upload a **reference image** (e.g., a photo of a spec
 ---
 
 ## 🎥 Demo
-![Visual Search Demo](media/demo.gif)
+![Visual Search Demo](media/vision.gif)
 > *The system detects multiple objects, tracks them across frames, and specifically identifies the target (Reference Image) using Vector Similarity.*
 
 ---
