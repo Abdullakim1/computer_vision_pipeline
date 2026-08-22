@@ -36,10 +36,23 @@ CineForge is an advanced, production-ready video generation studio that bridges 
 - **Atmospheric Effects**: Volumetric glow, lens flares, fog, haze, horizon glow
 
 ### 🌐 Cloud Integration
+- **Colab Backend (free, realistic)**: [Wan 2.1 T2V 1.3B](https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B-Diffusers) hosted on a **free Google Colab T4** — no API key, no payment. See [colab/CineForge_Colab_Video_Server.ipynb](colab/CineForge_Colab_Video_Server.ipynb)
 - **Luma Backend**: Luma AI Dream Machine API (Ray 2) for photorealistic text-to-video
 - **Seedance Backend**: ByteDance Provenance integration with style presets
 - **Kling Backend**: Kua'you Video 3.0 API with extended duration support
 - **Automatic Polling**: Background task management for cloud generation
+
+#### Realistic video generation (free, via Colab)
+The default `cinematic` backend is procedural, so it renders stylized/animated scenes. For
+**photorealistic** output without paying for Kling/Seedance/Luma:
+
+1. Open `colab/CineForge_Colab_Video_Server.ipynb` in Google Colab, set Runtime → **T4 GPU** (free), run all cells.
+2. Copy the printed `PUBLIC API URL` into `.env`: `COLAB_BASE_URL=<url>`
+3. Generate:
+   ```bash
+   python -m src.main --prompt "zombies walking on the street in a city" --backend colab
+   ```
+   Prompts are auto-enhanced with live-action realism keywords; pass `style="raw"` in `extras` to disable. First run downloads ~9 GB to Colab; each 5s 480p clip then takes ~2–4 min. The URL expires when the Colab runtime disconnects — re-run the last two cells and update `.env`.
 
 ### 🎨 Cinematic Grading
 - **18+ Color Presets**: Argo, Teal-Orange, Golden, Noir, Cyber, Vintage, and more

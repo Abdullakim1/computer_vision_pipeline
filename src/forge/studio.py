@@ -42,7 +42,7 @@ class CineForgeStudio:
     def backends():
         """List available backends and their readiness."""
         info = []
-        for name in ("cinematic", "local", "luma", "seedance", "kling"):
+        for name in ("cinematic", "local", "colab", "luma", "seedance", "kling"):
             try:
                 b = create_backend(name)
                 info.append({"name": name, "ready": b.check(),

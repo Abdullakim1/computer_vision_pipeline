@@ -67,8 +67,8 @@ class GenerateRequest(BaseModel):
     @field_validator('backend')
     @classmethod
     def validate_backend(cls, v):
-        if v not in ['cinematic', 'luma', 'seedance', 'kling']:
-            raise ValueError("Unsupported backend. Use 'cinematic', 'luma', 'seedance', or 'kling'")
+        if v not in ['cinematic', 'colab', 'luma', 'seedance', 'kling']:
+            raise ValueError("Unsupported backend. Use 'cinematic', 'colab', 'luma', 'seedance', or 'kling'")
         return v
 
 
@@ -167,7 +167,7 @@ def batch_info():
         "max_prompts": 50,
         "max_per_prompt": 10,
         "default_backend": "cinematic",
-        "supported_backends": ["cinematic", "luma", "seedance", "kling"],
+        "supported_backends": ["cinematic", "colab", "luma", "seedance", "kling"],
     }
 
 # ============================================

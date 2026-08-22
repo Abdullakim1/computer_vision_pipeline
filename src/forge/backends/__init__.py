@@ -37,6 +37,7 @@ def create_backend(name: str, **kw):
     sources = {
         "cinematic": ("cinematic", "CinematicBackend"),
         "local": ("local", "LocalLatentBackend"),
+        "colab": ("colab", "ColabBackend"),
         "luma": ("luma", "LumaBackend"),
         "seedance": ("seedance", "SeedanceBackend"),
         "kling": ("kling", "KlingBackend"),

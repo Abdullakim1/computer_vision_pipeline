@@ -10,6 +10,11 @@ defaults:
 
 # Cloud backends activate only when credentials are present in .env.
 backends:
+  colab:
+    # Free realistic video gen: Wan 2.1 1.3B hosted on a Colab T4.
+    # Run colab/CineForge_Colab_Video_Server.ipynb and paste the printed URL.
+    base_url_env: COLAB_BASE_URL
+    timeout_env: COLAB_TIMEOUT
   luma:
     api_key_env: LUMA_API_KEY
     base_url_env: LUMA_BASE_URL

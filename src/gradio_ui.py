@@ -204,7 +204,7 @@ def build():
                         
                         with gr.Row():
                             backend = gr.Dropdown(
-                                choices=["cinematic", "luma", "seedance", "kling"],
+                                choices=["cinematic", "colab", "luma", "seedance", "kling"],
                                 value="cinematic",
                                 label="Backend",
                             )
