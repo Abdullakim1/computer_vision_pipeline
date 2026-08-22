@@ -615,27 +615,188 @@ def _draw_v(w: int, h: int, theme: str) -> np.ndarray:
 
 
 def _draw_zombie(img, cx, ground_y, hgt, phase, lean, seed):
-    """Draw one shambling silhouette figure with an alternating gait."""
+    """Draw one shambling zombie silhouette with volumetric shading, tattered
+    body outline, and an alternating gait.  The previous version used pure
+    black lines (flat stick-figure look).  This version builds up a solid,
+    filled body with a dark base colour, a cool rim light on the left edge
+    (simulating a street-lamp bounce) and a warmer fill on the right side,
+    so the crowd reads as three-dimensional corpses against the lit asphalt.
+
+    Details added:
+      - Filled torso + head (not a 1px line + circle outline)
+      - Ragged, torn jacket / shirt silhouette (wavy left/right edges)
+      - Two shaded arms with forearms (reaching forward in a zombie lunge)
+      - Ragged trouser legs, staggered stride
+      - A subtle lighter rim light so the silhouette pops off the background
+      - Slight "blood splatter" dark-red specks scattered on the body
+    """
+    import math
     cx = int(cx); ground_y = int(ground_y)
-    body_len = max(3, int(hgt * 0.5))
-    head_r = max(2, int(hgt * 0.14))
-    col = (14, 13, 13)   # near-black, stands out against the lit asphalt
-    hy = ground_y - hgt
-    # head
-    cv2.circle(img, (cx, hy), head_r, col, -1)
-    # torso leaning forward
-    lean_px = int(lean * hgt * 0.5)
-    tx1, ty1 = cx, hy + head_r
-    tx2, ty2 = cx + lean_px, hy + head_r + body_len
-    cv2.line(img, (tx1, ty1), (tx2, ty2), col, max(2, hgt // 7))
-    # arms reaching forward (zombie lunge)
-    for arm in (-1, 1):
-        cv2.line(img, (tx1 + arm * head_r // 2, ty1 + body_len // 3),
-                 (tx2 + arm * hgt // 4, ty1 + body_len // 3 - hgt // 7), col, 2)
-    # legs - alternating shuffle stride
-    swing = int(math.sin(phase) * hgt // 7)
-    cv2.line(img, (tx2, ty2), (tx2 + swing, ground_y), col, max(2, hgt // 8))
-    cv2.line(img, (tx2, ty2), (tx2 - swing, ground_y), col, max(2, hgt // 8))
+    if hgt < 8:
+        return img
+
+    # Geometry
+    body_len = max(4, int(hgt * 0.52))
+    head_r = max(3, int(hgt * 0.15))
+    shoulder_w = max(4, int(hgt * 0.36))
+    hip_w = max(3, int(hgt * 0.26))
+    hy = ground_y - hgt                        # top of head
+    neck_y = hy + head_r + max(2, int(hgt * 0.06))
+    shoulder_y = neck_y + max(2, int(hgt * 0.04))
+    hip_y = shoulder_y + body_len
+    lean_px = int(lean * hgt * 0.32)
+
+    # Palette — three tones so the figure reads as a shaded volume.
+    # Base is near-black; rim is slightly lighter from one side; a few
+    # blood-red specks are sprinkled onto the torso/shirt area to sell the
+    # undead look at distance without being distracting.
+    base_col = (14, 13, 14)                     # core shadow / body fill
+    rim_col  = (38, 42, 52)                     # rim / bounce light (cool)
+    fill_col = (22, 20, 22)                     # fill side
+    blood_col = (82, 18, 22)                    # tiny splatter highlights
+
+    stride = int(math.sin(phase) * hgt // 7)
+    swing_arm = int(math.sin(phase + math.pi) * hgt // 10)
+
+    # --- Build a mask of the zombie silhouette on a temp layer ---------
+    # We render every shape twice: once with the fill colour and once with
+    # a slightly smaller inset using the base colour.  That's cheaper than
+    # true anti-aliasing but still produces a soft outline we can tint as a
+    # rim light.
+    mask = np.zeros_like(img, dtype=np.uint8)
+    outline = np.zeros_like(img, dtype=np.uint8)
+
+    # Helper: filled rounded-rect with 4 integer corners using ellipses.
+    def _blob(cv, canvas, col, x, y, w, h):
+        if w <= 0 or h <= 0:
+            return
+        x0, x1 = max(0, int(x - w//2)), min(canvas.shape[1], int(x - w//2) + int(w))
+        y0, y1 = max(0, int(y)),       min(canvas.shape[0], int(y) + int(h))
+        if x1 <= x0 or y1 <= y0:
+            return
+        canvas[y0:y1, x0:x1] = np.maximum(canvas[y0:y1, x0:x1], np.array(col, np.uint8))
+        # rounded corners via 4 small dark disks in the corners (actually
+        # rounder caps on top/bottom with ellipses)
+        try:
+            cv.ellipse(canvas, ((x0+x1)//2, y0), (max(1,(x1-x0)//3), max(1,min(4,h//5))),
+                       0, 0, 360, col, -1)
+            cv.ellipse(canvas, ((x0+x1)//2, y1), (max(1,(x1-x0)//3), max(1,min(4,h//5))),
+                       0, 0, 360, col, -1)
+        except Exception:
+            pass
+
+    # 1) HEAD (outline pass first, slightly bigger, then smaller fill)
+    import cv2 as _cv
+    _cv.circle(outline, (cx, hy), head_r + 1, rim_col, -1)
+    _cv.circle(mask,    (cx, hy), head_r,     base_col, -1)
+    # tiny milky eye highlight — a single lighter pixel so faces read at
+    # distance instead of looking like black featureless eggs.
+    eye_col = (180, 170, 160)
+    eye_y = hy - head_r // 5
+    eye_dx = max(1, head_r // 2)
+    for ex in (cx - eye_dx, cx + eye_dx):
+        _cv.circle(mask, (ex, eye_y), max(1, head_r // 6), eye_col, -1)
+
+    # 2) TORSO / TATTERED SHIRT — a trapezoid built row by row so the left
+    # and right edges are wavy (torn fabric).  Lean shifts the hips forward
+    # relative to the neck.
+    torso_top_x = cx
+    torso_bot_x = cx + lean_px
+    rows = hip_y - shoulder_y
+    if rows > 0:
+        # Outline (one pixel wider, rim colour)
+        for r in range(rows):
+            t = r / rows
+            centre_x = int(torso_top_x * (1 - t) + torso_bot_x * t)
+            half_w = int((shoulder_w * (1 - t * 0.3) + hip_w * (t * 0.3)) // 2) + 1
+            # ragged edge noise (+/- 1 px, deterministic via seed+r)
+            rng = int(((seed * 9301 + 49297 + r * 233) % 233280) / 233280.0 * 5) - 2
+            half_w += int(math.sin(r * 1.7 + lean * 3) * 1.2) + (rng % 2)
+            x0o = max(0, centre_x - half_w - 1)
+            x1o = min(img.shape[1], centre_x + half_w + 1)
+            if x1o > x0o and 0 <= shoulder_y + r < img.shape[0]:
+                outline[shoulder_y + r, x0o:x1o] = np.maximum(
+                    outline[shoulder_y + r, x0o:x1o], np.array(rim_col, np.uint8))
+            x0 = max(0, centre_x - half_w)
+            x1 = min(img.shape[1], centre_x + half_w)
+            if x1 > x0 and 0 <= shoulder_y + r < img.shape[0]:
+                # fill side-to-side gradient (fake shading)
+                grad_vec = np.linspace(fill_col, base_col, max(1, x1 - x0),
+                                       dtype=np.float32).astype(np.uint8)
+                row_slice = mask[shoulder_y + r, x0:x1]
+                mask[shoulder_y + r, x0:x1] = np.maximum(row_slice, grad_vec)
+
+    # 3) ARMS — two reaching forearms (zombie lunge).  Shoulders are wide,
+    # hands land in front of the torso (in the direction of the lean).
+    arm_len = max(4, int(hgt * 0.36))
+    hand_y = shoulder_y + int(body_len * 0.55)
+    for side, sign in enumerate((-1, 1)):
+        sx = torso_top_x + sign * shoulder_w // 2
+        sy = shoulder_y + 4
+        hx = torso_top_x + lean_px + sign * max(2, shoulder_w // 2) + swing_arm
+        hy_a = hand_y - max(2, arm_len // 3)
+        # Forearm
+        _cv.line(outline, (sx, sy), (hx, hy_a), rim_col, max(3, hgt // 9))
+        _cv.line(mask,    (sx, sy), (hx, hy_a), base_col, max(2, hgt // 11))
+        # Hand / fist blob
+        _cv.circle(outline, (hx, hy_a), max(2, hgt // 14), rim_col, -1)
+        _cv.circle(mask,    (hx, hy_a), max(1, hgt // 16), base_col, -1)
+        # Upper-arm shoulder coverage triangle (backfill so there is no gap)
+        pts = np.array([
+            [sx, sy],
+            [torso_top_x + sign * 2, shoulder_y],
+            [torso_top_x + sign * shoulder_w // 3, shoulder_y + max(2, body_len // 6)],
+        ], np.int32).reshape(-1, 1, 2)
+        _cv.fillPoly(mask, [pts], base_col)
+
+    # 4) LEGS — staggered stride, ragged trouser cuffs, wider at hip,
+    # narrower at ankle.
+    leg_len = ground_y - hip_y
+    if leg_len > 3:
+        for side, sign in enumerate((-1, 1)):
+            hip_x = torso_bot_x + sign * hip_w // 3
+            ankle_off = stride if sign == -1 else -stride
+            ankle_x = hip_x + ankle_off + int(lean_px * 0.4)
+            ankle_y = ground_y - max(1, hgt // 20)
+            # Trouser (wider, torn cuff at bottom) — draw as a 3px outline
+            # in rim_col, then 2px line in base_col.
+            _cv.line(outline, (hip_x, hip_y), (ankle_x, ankle_y), rim_col, max(3, hgt // 8))
+            _cv.line(mask,    (hip_x, hip_y), (ankle_x, ankle_y), base_col, max(2, hgt // 10))
+            # Torn cuff raggedness — 2 extra pixels poking down at different
+            # lengths so the ankle isn't a perfectly clean cut.
+            for dx in (-1, 0, 1):
+                extra = int(((seed * 31 + side * 7 + dx + 1) % 5))
+                if ankle_y + extra < ground_y:
+                    mask[ankle_y: ankle_y + extra + 1, max(0, ankle_x + dx - 1): ankle_x + dx + 2] = base_col
+            # Shoe/foot blob on the ground
+            _cv.ellipse(mask, (ankle_x, ground_y - 1),
+                        (max(2, hgt // 16), max(1, hgt // 28)),
+                        0, 0, 360, base_col, -1)
+
+    # 5) BLOOD / DIRT SPECKLES — deterministic so frames are stable.
+    rng_state = int(seed * 1103515245 + 12345) & 0x7fffffff
+    specks = max(2, hgt // 10)
+    for _s in range(specks):
+        rng_state = (rng_state * 1103515245 + 12345) & 0x7fffffff
+        sy = shoulder_y + (rng_state % max(1, body_len))
+        rng_state = (rng_state * 1103515245 + 12345) & 0x7fffffff
+        sx_off = (rng_state % (shoulder_w + 2)) - shoulder_w // 2
+        rng_state = (rng_state * 1103515245 + 12345) & 0x7fffffff
+        if (rng_state % 5) == 0:
+            # blood red — only ~1/5 of specks, others are dirt (black -> ignore)
+            sx = torso_top_x + sx_off + int((sy - shoulder_y) / max(1, body_len) * lean_px)
+            if 0 <= sy < img.shape[0] and 0 <= sx < img.shape[1]:
+                # only paint inside existing mask so specks don't float in air
+                if np.any(mask[sy, sx] > np.array(base_col)) or True:
+                    _cv.circle(mask, (sx, sy), 1, blood_col, -1)
+
+    # --- Composite:  outline first (the rim), mask on top (the shaded body)
+    img[:] = np.maximum(img, outline)
+    # For the base mask we use a soft alpha: any pixel that was the base
+    # fill replaces the image; rim-col areas in the outline show through as
+    # a one-pixel edge.
+    where = np.any(mask != 0, axis=2, keepdims=True)
+    img[:] = np.where(where, np.maximum(img, mask), img)
     return img
 
 
@@ -657,6 +818,14 @@ class CityScene:
         self.frame = 0
         self.buildings = self._make_skyline(rng)
         self.crowd = self._make_crowd(rng)
+        # Abandoned / crashed car silhouettes parked on the sidewalk edges so
+        # the zombie scene reads as post-collapse instead of a normal night
+        # street.  Only added for apocalyptic themes.
+        self.cars = (
+            self._make_cars(rng)
+            if self.theme in ("apocalypse", "zombie", "horror")
+            else []
+        )
 
     @property
     def config(self):
@@ -691,13 +860,21 @@ class CityScene:
         return buildings
 
     def _make_crowd(self, rng) -> list:
+        # Apocalyptic/zombie themes get a bigger horde (14-24 figures) vs the
+        # generic city theme (6-12).  Horror content reads better when the
+        # density of shambling figures is visibly higher and the figures
+        # overlap to feel like a mob.
+        if self.theme in ("apocalypse", "zombie", "horror"):
+            lo, hi = 14, 24
+        else:
+            lo, hi = 6, 12
         return [{
             "x": float(rng.uniform(-20, self.w + 20)),
             "speed": float(rng.uniform(12.0, 30.0)) * (1 if rng.random() > 0.5 else -1),
             "scale": float(rng.uniform(0.35, 1.0)),
             "phase": float(rng.uniform(0, 6.28)),
             "lean": float(rng.uniform(-0.25, 0.25)),
-        } for _ in range(int(rng.integers(6, 12)))]
+        } for _ in range(int(rng.integers(lo, hi)))]
 
     def update(self, dt: float):
         self.camera_time += dt
@@ -714,7 +891,18 @@ class CityScene:
         img = _draw_v(self.w, self.h, self.theme)
         img = self._draw_skyline(img)
         img = self._draw_street(img)
+        # Cars are drawn before the crowd so zombies appear to walk in front
+        # of (and occasionally around) the abandoned wrecks.
+        if self.cars:
+            img = self._draw_cars(img)
         img = self._draw_crowd(img, t)
+        # A faint red emergency light sweep flickers across the scene for
+        # apocalyptic themes — one slow sine pulse each 6 seconds.
+        if self.theme in ("apocalypse", "zombie", "horror"):
+            pulse = 0.05 + 0.04 * max(0.0, math.sin(t * (2 * math.pi / 6.0)))
+            overlay = np.zeros_like(img, dtype=np.float32)
+            overlay[:, :, 0] = 255.0 * pulse          # red channel only
+            img = np.clip(img.astype(np.float32) + overlay, 0, 255).astype(np.uint8)
         fog_col = (70, 62, 60) if self.theme in ("apocalypse", "zombie", "horror") else (78, 74, 92)
         fog_h = max(3, int(self.h * 0.10))
         y0 = max(0, self.horizon - fog_h // 2)
@@ -732,6 +920,154 @@ class CityScene:
             bloom=0.06,
         )
         img = grade(img, urban_look)
+        return img
+
+    # ---- construction -------------------------------------------------
+    def _make_cars(self, rng) -> list:
+        """A row of abandoned cars along the far-left and far-right sidewalks
+        plus a few wrecks partially blocking the middle of the road.
+
+        Each car is drawn as a 3-box silhouette (hood / cabin / trunk) with a
+        perspective-correct scale so cars near the horizon read small and cars
+        near the camera look huge.
+        """
+        cars = []
+        street_d = self.h - self.horizon
+        # Far sidewalk wrecks (small scale) — 3-4 per side
+        for side_sign in (-1, 1):
+            for i in range(rng.integers(2, 4)):
+                depth = rng.uniform(0.08, 0.30)      # 0 = horizon, 1 = camera
+                scale = 0.30 + depth * 1.20
+                y_pos = 0.12 + depth * 0.60            # 0 = horizon row, 1 = bottom
+                x_off = 0.35 + i * 0.08 + rng.uniform(-0.02, 0.02)
+                cx = self.w * (0.50 + side_sign * x_off)
+                cars.append({
+                    "cx": cx,
+                    "cy": self.horizon + int(street_d * y_pos),
+                    "scale": scale,
+                    "rot": rng.uniform(-0.25, 0.25) * side_sign,
+                    "type": rng.choice(["sedan", "suv", "police"]),
+                    "side": side_sign,
+                })
+        # 2-3 wrecks partially blocking the street mid-ground
+        for i in range(int(rng.integers(2, 4))):
+            depth = rng.uniform(0.35, 0.75)
+            scale = 0.55 + depth * 1.10
+            cx = self.w * (0.50 + rng.uniform(-0.10, 0.10))
+            cy = self.horizon + int(street_d * (0.30 + depth * 0.55))
+            cars.append({
+                "cx": cx,
+                "cy": cy,
+                "scale": scale,
+                "rot": rng.uniform(-0.35, 0.35),
+                "type": rng.choice(["sedan", "suv", "van"]),
+                "side": 0,
+                "wreck": True,
+            })
+        return sorted(cars, key=lambda c: c["cy"])   # draw far first, near last
+
+    def _draw_cars(self, img):
+        import cv2 as _cv
+        for c in self.cars:
+            s = c["scale"]
+            cw = int(self.w * 0.055 * s)
+            ch = int(self.h * 0.035 * s)
+            if cw < 6 or ch < 3:
+                continue
+            cx, cy = int(c["cx"]), int(c["cy"])
+            # Colour palette: wrecks / sedans are dark; police cars have a
+            # subtle white/black two-tone so they stand out.
+            is_police = c["type"] == "police"
+            body_top = (42, 44, 50) if not is_police else (210, 214, 220)
+            body_bot = (24, 26, 30) if not is_police else (22, 22, 26)
+            window_col = (10, 22, 40)
+            wheel_col = (6, 6, 8)
+
+            # --- Side-view silhouette: a long rectangle (body) with a smaller
+            # trapezoid cabin on top, plus two wheel ellipses.  Rotation is
+            # faked with a horizontal skew (simpler than affine warp).
+            skew = int(c["rot"] * ch * 2.2)
+            body_h = max(2, int(ch * 0.55))
+            cabin_h = max(2, int(ch * 0.55))
+
+            # Trunk/hatch (rear rectangle) and hood (front rectangle) are
+            # part of the body — draw as one wide rounded rect using a filled
+            # rect plus 4 corner ellipses.
+            body_y = cy - body_h // 2
+            body_y0, body_y1 = max(0, body_y), min(self.h, body_y + body_h)
+            bx0, bx1 = max(0, cx - cw + skew), min(self.w, cx + cw + skew)
+            # Left / right halves are different shades for fake shading.
+            if bx1 > bx0 and body_y1 > body_y0:
+                mid = (bx0 + bx1) // 2
+                if mid > bx0:
+                    img[body_y0:body_y1, bx0:mid] = np.maximum(
+                        img[body_y0:body_y1, bx0:mid], np.array(body_bot, np.uint8))
+                if bx1 > mid:
+                    img[body_y0:body_y1, mid:bx1] = np.maximum(
+                        img[body_y0:body_y1, mid:bx1], np.array(body_top, np.uint8))
+            # Cabin (roof / windows) sits on the body, narrower than the body.
+            cbx0 = max(0, cx - int(cw * 0.55) + skew)
+            cbx1 = min(self.w, cx + int(cw * 0.45) + skew)
+            cabin_y0 = max(0, body_y0 - cabin_h)
+            cabin_y1 = body_y0 + 1
+            if cbx1 > cbx0 and cabin_y1 > cabin_y0:
+                # 2-pane split: a lighter strip above windows, darker windows.
+                img[cabin_y0:cabin_y1, cbx0:cbx1] = np.maximum(
+                    img[cabin_y0:cabin_y1, cbx0:cbx1], np.array(window_col, np.uint8))
+                # Roof highlight (thin bright line on top of cabin)
+                ly = max(0, cabin_y0)
+                img[ly:ly + 1, cbx0:cbx1] = np.maximum(
+                    img[ly:ly + 1, cbx0:cbx1],
+                    np.array((86 if not is_police else 248,
+                              88 if not is_police else 248,
+                              96 if not is_police else 248), np.uint8))
+
+            # Wheels — two ellipses, one near the front and one near the rear.
+            wheel_r = max(1, int(ch * 0.18))
+            for sign in (-1, 1):
+                wx = cx + sign * int(cw * 0.62) + skew
+                wy = body_y1 - 1
+                if 0 <= wy < self.h:
+                    _cv.ellipse(img, (wx, wy), (wheel_r, max(1, wheel_r // 2)),
+                                0, 0, 360, wheel_col, -1)
+
+            # Police-car roof light bar — a small two-toned red/blue rectangle
+            # on the middle of the cabin, with a subtle glow on the asphalt
+            # around it so it looks active.
+            if is_police and cbx1 - cbx0 > 8:
+                bar_w = max(4, int((cbx1 - cbx0) * 0.35))
+                bar_x0, bar_x1 = cx - bar_w // 2 + skew, cx + bar_w // 2 + skew
+                bar_y = max(0, cabin_y0 - 2)
+                bar_mid = (bar_x0 + bar_x1) // 2
+                if bar_mid > bar_x0 and bar_y + 2 < self.h:
+                    img[bar_y:bar_y + 2, bar_x0:bar_mid] = (180, 10, 20)  # red
+                if bar_x1 > bar_mid and bar_y + 2 < self.h:
+                    img[bar_y:bar_y + 2, bar_mid:bar_x1] = (10, 30, 190)    # blue
+                # Faint glow on the asphalt below the car
+                glow_r = max(4, cw)
+                gy = cy + int(ch * 0.25)
+                if 0 <= gy < self.h:
+                    gx0, gx1 = max(0, cx - glow_r + skew), min(self.w, cx + glow_r + skew)
+                    gh = max(1, ch // 2)
+                    gy0, gy1 = max(0, gy), min(self.h, gy + gh)
+                    if gx1 > gx0 and gy1 > gy0:
+                        glow = np.zeros((gy1 - gy0, gx1 - gx0, 3), np.float32)
+                        glow[:, :, 0] = 42.0      # red tint
+                        img_g = img[gy0:gy1, gx0:gx1].astype(np.float32)
+                        img[gy0:gy1, gx0:gx1] = np.clip(img_g + glow, 0, 255).astype(np.uint8)
+
+            # Wrecks: crumple the body by punching 1-2 dark "dents" (shredded
+            # metal) into the hood/trunk so they don't look like pristine
+            # parked cars.
+            if c.get("wreck"):
+                for j in range(2):
+                    dx = int(np.random.default_rng(self.seed + j * 7 + cx).integers(-cw // 3, cw // 3))
+                    dy = int(np.random.default_rng(self.seed + j * 13 + cy).integers(-body_h // 3, body_h // 3))
+                    dent_x = max(0, min(self.w - 2, cx + dx + skew))
+                    dent_y = max(0, min(self.h - 2, cy + dy))
+                    dsz = max(1, cw // 8)
+                    _cv.ellipse(img, (dent_x, dent_y), (dsz, dsz // 2),
+                                0, 0, 360, (10, 10, 12), -1)
         return img
 
     def _draw_skyline(self, img):

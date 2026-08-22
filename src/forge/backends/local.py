@@ -1,29 +1,130 @@
-"""Local latent-diffusion backend (would run a video-capable model in-process).
+"""Local latent-diffusion backend — Wan 2.1 1.3B (realistic text-to-video).
 
-This adapter is a real integration point: whatever latent architecture a
-team deploys (SVH, ModelScope T2V, CogVideoX, Wan2.x...) can be routed
-through this one facade. It *degrades gracefully*: if torch/diffusers are
-not installed (or no GPU seed is set), the backend refuses politely so the
-studio can fall back to the cinematic engine.
+Runs the open-source Wan 2.1 T2V 1.3B model in-process on a CUDA GPU. Uses
+8-bit quantization (bitsandbytes) for the text encoder so the full pipeline
+fits in ~8–10 GB VRAM — runs on a free Colab T4 or any 12GB+ consumer GPU.
+
+Falls back gracefully if torch/diffusers/bitsandbytes or a CUDA device are
+not present, so the studio can always switch to ``cinematic`` or a cloud
+backend.
+
+Set ``WAN_MODEL_CACHE`` in the env to reuse a local weights folder (point
+at a Hugging Face snapshot dir or a ``models/Wan2.1-T2V-1.3B-Diffusers``
+checkout) — otherwise weights are streamed and cached by the Hub.
 """
 
 from __future__ import annotations
+
+import os
+import threading
+from dataclasses import dataclass
+from typing import Optional
+
+import numpy as np
 
 from ..types import GeneratedClip, GenerationRequest
 from .base import GeneratorBackend
 
 
+# ---------------------------------------------------------------------------
+# Availability probe
+# ---------------------------------------------------------------------------
 def _available():
     try:
         import torch  # noqa: F401
         import diffusers  # noqa: F401
-        return True
-    except Exception:  # pragma: no cover
+        import bitsandbytes  # noqa: F401
+        return torch.cuda.is_available()
+    except Exception:
         return False
 
 
+def _snap(v: int, lo: int = 64, multiple: int = 16) -> int:
+    """Snap a pixel dimension onto the grid Wan's VAE was trained at."""
+    return max(lo, (int(v) // multiple) * multiple)
+
+
+_REALISM_SUFFIX = (
+    "photorealistic live-action film footage, cinematic lighting, "
+    "shot on digital cinema camera, natural motion"
+)
+
+_DEFAULT_NEGATIVE = (
+    "cartoon, anime, illustration, painting, drawing, CGI, 3d render, "
+    "plastic skin, blurry, low quality, worst quality, jpeg artifacts, deformed"
+)
+
+
+# ---------------------------------------------------------------------------
+# Model singleton — lazy-loaded once per process, thread-safe.
+# ---------------------------------------------------------------------------
+@dataclass
+class _LoadedPipe:
+    pipe: object  # diffusers.WanPipeline
+    model_id: str
+    loaded_at: float
+
+
+_PIPE: Optional[_LoadedPipe] = None
+_PIPE_LOCK = threading.Lock()
+
+
+def _load_pipe(model_id: str, local_dir: Optional[str]):
+    """Load (or reuse) the Wan 2.1 pipeline onto the GPU."""
+    global _PIPE
+    with _PIPE_LOCK:
+        if _PIPE is not None:
+            return _PIPE.pipe
+
+        import time
+        import torch
+        from diffusers import WanPipeline, AutoencoderKLWan
+        from transformers import AutoTokenizer, UMT5EncoderModel, BitsAndBytesConfig
+
+        source = local_dir if local_dir and os.path.isdir(local_dir) else model_id
+        print(f"[local] loading Wan pipeline from: {source}")
+        t0 = time.time()
+
+        tokenizer = AutoTokenizer.from_pretrained(source, subfolder="tokenizer")
+        text_encoder = UMT5EncoderModel.from_pretrained(
+            source, subfolder="text_encoder",
+            quantization_config=BitsAndBytesConfig(load_in_8bit=True),
+            torch_dtype=torch.float16,
+            device_map="cuda",
+        )
+        vae = AutoencoderKLWan.from_pretrained(source, subfolder="vae", dtype=torch.float32)
+        pipe = WanPipeline.from_pretrained(
+            source,
+            text_encoder=text_encoder, tokenizer=tokenizer, vae=vae,
+            dtype=torch.float16,
+        )
+        pipe.transformer.to("cuda")
+        pipe.vae.to("cuda")
+        pipe.enable_vae_tiling()
+
+        import gc; gc.collect()
+        elapsed = round(time.time() - t0, 1)
+        vram = round(torch.cuda.memory_allocated() / 1e9, 1)
+        print(f"[local] Wan ready in {elapsed}s, VRAM used: {vram} GB")
+
+        _PIPE = _LoadedPipe(pipe=pipe, model_id=model_id, loaded_at=time.time())
+        return pipe
+
+
+# ---------------------------------------------------------------------------
+# Backend facade
+# ---------------------------------------------------------------------------
 class LocalLatentBackend(GeneratorBackend):
+    """Realistic local video generation via Wan 2.1 1.3B (8-bit, CUDA)."""
+
     name = "local"
+
+    DEFAULT_MODEL = "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+
+    def __init__(self, **env):
+        super().__init__(**env)
+        self.model_id = os.getenv("WAN_MODEL_ID", self.DEFAULT_MODEL)
+        self.local_dir = os.getenv("WAN_MODEL_CACHE", "models/Wan2.1-T2V-1.3B-Diffusers")
 
     def check(self) -> bool:
         return _available()
@@ -31,14 +132,68 @@ class LocalLatentBackend(GeneratorBackend):
     def generate(self, req: GenerationRequest) -> GeneratedClip:
         if not _available():
             raise RuntimeError(
-                "local latent backend unavailable: install torch + diffusers "
-                "(see requirements.txt 'Deep-Torch' section). Falling back to "
-                "an online backend is recommended."
+                "local latent backend unavailable: need torch + diffusers + "
+                "bitsandbytes on a CUDA GPU. Use 'cinematic' for offline, or "
+                "'colab' / 'luma' cloud backends."
             )
-        # NOTE: real model loading + sampling happens here behind a standard
-        # API. To run without touching Cloud adapters, either install the
-        # heavy stack or use the 'cinematic' backend.
-        raise NotImplementedError(
-            "local latent sampling is scaffolded for a GPU env; select a "
-            "backend that is available on this machine (e.g. 'cinematic')."
+        import torch
+
+        pipe = _load_pipe(self.model_id, self.local_dir)
+
+        # --- prompt enhancement ------------------------------------------------
+        style = req.extras.get("style", "realistic")
+        prompt = req.prompt
+        if style not in ("none", "raw"):
+            prompt = f"{prompt}, {_REALISM_SUFFIX}" if style == "realistic" else f"{prompt}, {style} style"
+        negative = req.negative_prompt or _DEFAULT_NEGATIVE
+
+        # --- dims + frames -----------------------------------------------------
+        w, h = _snap(req.width), _snap(req.height)
+        fps = max(5, min(int(req.fps), 24))
+        duration = max(1.0, min(float(req.duration), 10.0))
+        num_frames = max(9, min(int(round(duration * fps)), 121))
+
+        steps = int(req.extras.get("steps", 25))
+        guidance = float(req.extras.get("guidance_scale", 5.0))
+        seed = int(req.seed) if req.seed is not None else 2718
+        generator = torch.Generator("cuda").manual_seed(seed)
+
+        print(
+            f"[local] sampling Wan2.1: {w}x{h} x {num_frames}f @ {fps}fps "
+            f"({duration:.1f}s), steps={steps}, cfg={guidance}, seed={seed}"
+        )
+
+        # --- sample ------------------------------------------------------------
+        import time
+        t0 = time.time()
+        result = pipe(
+            prompt=prompt,
+            negative_prompt=negative,
+            width=w, height=h,
+            num_frames=num_frames,
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            generator=generator,
+        )
+        elapsed = round(time.time() - t0, 1)
+        print(f"[local] sampling finished in {elapsed}s")
+
+        pil_frames = result.frames[0]
+        frames = np.stack([np.asarray(f, dtype=np.uint8) for f in pil_frames])
+
+        return GeneratedClip(
+            prompt=req.prompt,
+            backend="local",
+            frames=frames,
+            fps=float(fps),
+            metadata={
+                "model": self.model_id,
+                "enhanced_prompt": prompt,
+                "negative_prompt": negative,
+                "seed": seed,
+                "resolution": f"{w}x{h}",
+                "steps": steps,
+                "guidance_scale": guidance,
+                "elapsed_s": elapsed,
+            },
         )

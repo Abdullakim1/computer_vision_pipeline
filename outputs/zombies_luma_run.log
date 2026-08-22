@@ -1,0 +1,11 @@
+[env] loaded .env, LUMA key present: True
+Generating with Luma backend...
+Traceback (most recent call last):
+  File "<stdin>", line 28, in <module>
+  File "/home/kim/computer_vision_pipeline/./src/forge/studio.py", line 72, in text_to_video
+    clip = backend_obj.generate(req)
+  File "/home/kim/computer_vision_pipeline/./src/forge/backends/luma.py", line 380, in generate
+    task_id = self._submit_task(luma_req)
+  File "/home/kim/computer_vision_pipeline/./src/forge/backends/luma.py", line 216, in _submit_task
+    raise RuntimeError(
+RuntimeError: Luma API request failed: 403 - Not authenticated
