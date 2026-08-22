@@ -1,0 +1,21 @@
+# Cinematic config — defaults used by the API server.
+defaults:
+  backend: cinematic
+  width: 960
+  height: 540
+  fps: 24
+  duration: 4.0
+  seed: 2718
+  look: golden
+
+# Cloud backends activate only when credentials are present in .env.
+backends:
+  luma:
+    api_key_env: LUMA_API_KEY
+    base_url_env: LUMA_BASE_URL
+  seedance:
+    api_key_env: SEEDANCE_API_KEY
+    base_url_env: SEEDANCE_BASE_URL
+  kling:
+    api_key_env: KLING_API_KEY
+    base_url_env: KLING_BASE_URL

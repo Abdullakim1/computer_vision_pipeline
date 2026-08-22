@@ -1,77 +1,214 @@
-# 👁️ Semantic Visual Search & Tracking Pipeline
-### Real-Time Zero-Shot Object Re-Identification System
+# 🎬 CineForge - Professional Video Generation Studio
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-blue) ![YOLOv8](https://img.shields.io/badge/YOLOv8-ONNX-green) ![OpenAI CLIP](https://img.shields.io/badge/OpenAI-CLIP-black) ![FastAPI](https://img.shields.io/badge/FastAPI-REST-teal)
+<div align="center">
+
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/Version-2.0.0-orange)
+
+[English](#-cineforge) | [简体中文](#-cineforge-简体中文)
+
+**Production-Grade Video Generation Platform for AI/ML Professionals**
+
+</div>
+
+---
 
 ## 📖 Overview
-This project goes beyond standard object detection by implementing a **Visual Search Engine** for live video streams. It integrates **YOLOv8** for detection, **SORT** for temporal tracking, and **OpenAI's CLIP** for semantic feature extraction.
 
-The system allows users to upload a **reference image** (e.g., a photo of a specific backpack, person, or vehicle) via a REST API. The pipeline then scans the live feed, generates high-dimensional vector embeddings for every detected object, and highlights the target based on semantic similarity—all in real-time.
+CineForge is an advanced, production-ready video generation studio that bridges the gap between AI-driven content creation and traditional cinematic workflows. Built with a modular architecture, it supports:
 
----
-
-## 🎥 Demo
-![Visual Search Demo](media/vision.gif)
-> *The system detects multiple objects, tracks them across frames, and specifically identifies the target (Reference Image) using Vector Similarity.*
-
----
-
-## ⚡ System Architecture
-
-The pipeline uses a modular "Assembly Line" architecture designed to minimize latency (lag) while running heavy neural networks.
-
-| Stage | Component | Technology | Responsibility |
-| :--- | :--- | :--- | :--- |
-| **1. Ingestion** | `BufferLoader` | **Threaded OpenCV** | Decouples frame reading from processing to prevent I/O blocking. |
-| **2. Inference** | `ObjectDetector` | **YOLOv8 (ONNX)** | Detects objects and extracts bounding boxes at high FPS. |
-| **3. Tracking** | `Tracker` | **SORT (Kalman Filter)** | Assigns unique IDs to objects to maintain identity across frames. |
-| **4. Analysis** | `FeatureExtractor` | **CLIP (ViT-B-32)** | "Crops" detections and converts them into 512-D vector embeddings. |
-| **5. Matching** | `LogicCore` | **Cosine Similarity** | Compares the *Target Vector* vs. *Live Object Vectors* to find a match. |
-| **6. Control** | `API` | **FastAPI** | Allows dynamic updating of the target image without stopping the stream. |
-
-
-
-[Image of System Architecture Diagram]
-
+- **Procedural Video Generation** - GPU-free generative engine with cinematic quality
+- **Cloud API Integration** - Seamless integration with Seedance 2.0 & Kling 3.0
+- **Advanced Motion** - 25+ camera motions with optical flow interpolation
+- **Professional Grading** - 18+ color grading presets
+- **Comprehensive Metrics** - Quality analysis for production pipelines
+- **One-Command Portfolio** - A self-contained HTML showcase gallery
 
 ---
 
-## 🛠️ The "Magic": How it Works
-The core innovation here is **Zero-Shot Re-Identification**. We do not train the model on specific objects. Instead, we use vector math:
+## ✨ Key Features
 
-1.  **Vectorizing the Target:** When a user uploads a reference photo, CLIP converts it into a mathematical list of numbers (a 512-dimensional vector).
-2.  **Vectorizing the World:** Every object YOLO sees is cropped and passed through CLIP to get its own vector.
-3.  **The Match:** We calculate the **Cosine Similarity** between the *Target Vector* and the *Live Vectors*.
-    * If Similarity > 0.85 $\rightarrow$ **TARGET FOUND**.
-    * If Similarity < 0.85 $\rightarrow$ Ignore.
+### 🎥 Procedural Generation
+- **14 Procedural Themes**: Aurora, Sunset, Golden Hour, Neon City, Ocean, Mountains, Mono, Campfire, Cyber, Moody, Meadow, Storm, City, Apocalypse
+- **Prompt → Theme auto-resolution**: free text is mapped to the closest theme, so a request like *"zombies walking on the street in a city"* renders an apocalyptic urban scene instead of a random aurora
+- **Urban Scene Engine**: night city skyline with lit windows, a street, and a crowd of **walking zombie silhouettes** (6–12 animated figures)
+- **25+ Camera Motions**: Orbit, Pan, Zoom, Dolly, Crane, Handheld, Dutch Tilt, Jib, Tracking, and more
+- **6 Particle Systems**: Fireflies, Embers, Snow, Rain, Foam, Data streams
+- **Atmospheric Effects**: Volumetric glow, lens flares, fog, haze, horizon glow
+
+### 🌐 Cloud Integration
+- **Luma Backend**: Luma AI Dream Machine API (Ray 2) for photorealistic text-to-video
+- **Seedance Backend**: ByteDance Provenance integration with style presets
+- **Kling Backend**: Kua'you Video 3.0 API with extended duration support
+- **Automatic Polling**: Background task management for cloud generation
+
+### 🎨 Cinematic Grading
+- **18+ Color Presets**: Argo, Teal-Orange, Golden, Noir, Cyber, Vintage, and more
+- **Advanced Effects**: Bokeh, Chromatic Aberration, Scanlines, Film Grain
+- **Custom Grading**: Per-frame adjustment with intensity control
+
+### 📊 Quality Metrics
+- **Motion Analysis**: Optical flow, temporal diversity, motion continuity
+- **Visual Quality**: Sharpness, colorfulness, noise level, dynamic range
+- **Perceptual Scoring**: AI-powered quality assessment
 
 ---
 
-## 🚀 Use Cases & Business Value
-* **Security & Surveillance:** "Find this missing person in the crowd." (Re-ID without retraining).
-* **Retail Analytics:** "Track customer #45 across different camera aisles."
-* **Logistics:** "Locate the package labeled 'Fragile' on the conveyor belt."
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/cineforge.git
+cd cineforge
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the demo
+python -m src.main demo
+```
+
+### Using the CLI
+
+```bash
+# List available backends and themes
+cineforge info
+
+# Generate a video from text
+python -m src.main gen "cinematic aurora over mountains" --backend cinematic --motion orbit
+
+# Free-text prompts auto-resolve to a theme — zombies produce an urban scene
+python -m src.main gen "zombies walking on the street in a city at night" --out outputs/zombies.mp4
+
+# Generate a storyboard film
+python -m src.main story "A lone traveler crosses a dune" --beats 5
+
+# Generate a showcase portfolio
+python -m src.main showcase --outdir media/showcase
+
+# Build a self-contained HTML portfolio gallery (recommended)
+python -m src.main portfolio --outdir media/portfolio
+
+# View system statistics
+cineforge stats
+```
+
+### Using the Web Interface
+
+```bash
+# Start the Gradio web UI
+cd /home/kim/computer_vision_pipeline
+PYTHONPATH=. python3 -m src.gradio_ui
+
+# Then open http://localhost:7860 in your browser
+```
+
+### Using the REST API
+
+```bash
+# Start the API server
+PYTHONPATH=. uvicorn src.api:app --reload --port 8000
+
+# Test the API
+curl http://localhost:8000/health
+
+# Generate a video via API
+curl -X POST "http://localhost:8000/video/generate" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "aurora over mountains", "backend": "cinematic", "duration": 4.0}'
+```
 
 ---
 
-## 📁 Project Structure
-The codebase is organized as a production-grade Python package.
+## 🖼️ Portfolio & Showcase
 
-```text
-visual-search-pipeline/
-├── src/
-│   ├── api.py               # FastAPI endpoint for dynamic target upload
-│   ├── data_ingestion.py    # Threaded buffer for RTSP/Webcam
-│   ├── inference.py         # ONNX Runtime engine (YOLOv8)
-│   ├── feature_extraction.py# CLIP Wrapper for semantic embeddings
-│   ├── tracker.py           # SORT logic for ID persistence
-│   └── pipeline.py          # Main orchestrator
-├── models/
-│   └── yolov8n.onnx         # Quantized weights for CPU/GPU speed
-├── query_images/            # Storage for user-uploaded targets
-├── requirements.txt         # Dependencies
-└── README.md
+One command turns the whole engine into a **shareable, self-contained portfolio** —
+a deliverable you can open in a browser, drop into a presentation, or share as a
+single `index.html` file with every preview embedded inline:
+
+```bash
+# Build the full 12-theme portfolio (clips, gifs, posters, report, gallery)
+python -m src.main portfolio --outdir media/portfolio
+
+# Build a curated subset
+python -m src.main portfolio --themes aurora cyber neon --outdir media/portfolio
+```
+
+What it produces in `media/portfolio/`:
+
+| Artifact | Contents |
+|----------|----------|
+| `index.html` | Branded, **self-contained** gallery — base64 previews embedded, opens anywhere |
+| `<theme>.mp4`  | Full-resolution clip for each theme |
+| `<theme>.gif`  | Lightweight animated preview (GIF) |
+| `<theme>.jpg`  | Representative poster frame |
+| `metrics_report.txt` | Per-clip perceptual quality, sharpness & colorfulness |
+
+Each clip pairs a theme with a distinct camera move (orbit, pan, dolly, crane,
+tilt, handheld…) so the portfolio demonstrates the full range of the motion
+engine at a glance. You can launch the same workflow from the **Portfolio** tab
+of the web UI.
+
+---
+
+## 🏗️ System Architecture
 
 ```
+CineForge Studio
+├── Procedural Backend (GPU-free)
+│   ├── Theme Engine (11 themes)
+│   ├── Particle System
+│   ├── Atmospheric Effects
+│   └── Camera Motion Controller
+├── Cloud Backend Adapter
+│   ├── Seedance Integration
+│   ├── Kling Integration
+│   └── Task Management
+├── Effects Pipeline
+│   ├── Color Grading
+│   ├── Advanced Effects
+│   └── Post-Processing
+├── Metrics Engine
+│   ├── Optical Flow Analysis
+│   ├── Quality Assessment
+│   └── Motion Analysis
+└── Orchestration Layer
+    ├── CLI Interface
+    ├── Web UI (Gradio)
+    └── REST API (FastAPI)
+```
+
 ---
-*Created by [Abdullakim](https://github.com/Abdullakim1)*
+
+## 🎨 Procedural Themes
+
+| Theme | Palette | Look | Particles |
+|-------|---------|------|-----------|
+| Aurora | Polar Night | Cyber | Fireflies |
+| Sunset | Dusk Sky | Golden | Embers |
+| Golden Hour | Morning Light | Golden | Dust |
+| Neon City | Night Lights | Cyber | Lights |
+| Ocean Waves | Blue Depths | Argo | Foam |
+| Mountain Range | Distant Peaks | Vintage | Mist |
+| Monochrome | B&W Film | Noir | Snow |
+| Campfire | Night Glow | Teal-Orange | Embers |
+| Cyber Future | Hologram | Cyber | Data |
+| Moody Fog | Dark Tone | Noir | Mist |
+| Meadow | Grass Field | Golden | Pollen |
+| Storm | Lightning | Argo | Rain |
+
+---
+
+## 🎬 Camera Motions
+
+- **Orbit**: Gentle circular motion
+- **Pan Left/Right**: Horizontal movement
+- **Zoom In/Out**: Focus manipulation
+- **Dolly In/Out**: Forward/backward movement
+- **Crane Up/Down**: Vertical elevation
+- **Handheld**: Natural camera shake
+- **Dutch Tilt**: Off-kilter dramatic frame
+- **Jib**: Rising sweeping arc shot
+- **Tracking**: Steady lateral follow
+- **Static**: Locked-off tripod frame

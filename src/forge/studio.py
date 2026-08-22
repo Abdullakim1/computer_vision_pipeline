@@ -42,7 +42,7 @@ class CineForgeStudio:
     def backends():
         """List available backends and their readiness."""
         info = []
-        for name in ("cinematic", "local", "seedance", "kling"):
+        for name in ("cinematic", "local", "luma", "seedance", "kling"):
             try:
                 b = create_backend(name)
                 info.append({"name": name, "ready": b.check(),
@@ -261,6 +261,16 @@ class CineForgeStudio:
         """Get list of available camera motions."""
         from .backends.cinematic import _camera_moves
         return list(_camera_moves.keys())
+
+    # ------------------------------------------------------------------
+    def generate_portfolio(self, outdir="media/portfolio", themes=None, **kw):
+        """Generate a self-contained portfolio: clips, gifs, posters,
+        a quality report and a shareable ``index.html`` gallery.
+
+        Returns a dict with ``clips``, ``report`` and ``gallery`` keys.
+        """
+        from .showcase import build_portfolio
+        return build_portfolio(self, outdir=outdir, themes=themes, **kw)
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,13 @@
+CineForge Portfolio - Quality Analysis
+==============================================
+
+AURORA  (orbit move)
+  perceptual_quality : 0.502
+  sharpness          : 79.95
+  colorfulness       : 43.73
+
+SUNSET  (pan_right move)
+  perceptual_quality : 0.579
+  sharpness          : 128.24
+  colorfulness       : 46.49
+

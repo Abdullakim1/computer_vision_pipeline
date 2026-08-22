@@ -147,6 +147,21 @@ def create_showcase(look):
     return "\n".join(outputs)
 
 
+def create_portfolio(themes_text):
+    """Generate a self-contained portfolio gallery from theme list (all if blank)."""
+    studio = _build_studio()
+    theme_list = [t.strip() for t in (themes_text or "").split(",") if t.strip()] or None
+    try:
+        outcome = studio.generate_portfolio(outdir="media/portfolio", themes=theme_list)
+    except Exception as exc:  # pragma: no cover
+        return f"⚠️ Failed: {exc}"
+    clips = outcome["clips"]
+    lines = [f"✅ Built {len(clips)} clips → {outcome['gallery']}", ""]
+    lines += [f"  • {c['theme'].title():10s} {c['motion']:10s} q={c.get('perceptual_quality', 0):.2f}"
+              for c in clips]
+    return "\n".join(lines) + f"\n\n📊 {outcome['report']}"
+
+
 def build():
     """Build and return a professional Gradio interface."""
     if not _HAS_GRADIO:
@@ -189,7 +204,7 @@ def build():
                         
                         with gr.Row():
                             backend = gr.Dropdown(
-                                choices=["cinematic", "seedance", "kling"],
+                                choices=["cinematic", "luma", "seedance", "kling"],
                                 value="cinematic",
                                 label="Backend",
                             )
@@ -283,6 +298,20 @@ def build():
                             [story, beats, w, h, fps, seed, b_look],
                             [gif3, mp4_3],
                         )
+
+                    # Portfolio Tab
+                    with gr.Tab("Portfolio"):
+                        gr.Markdown("**Build a self-contained showcase gallery across all 12 procedural themes.**")
+                        with gr.Row():
+                            p_themes = gr.Textbox(
+                                label="Themes (comma-separated; blank = all)",
+                                value="aurora, sunset, golden, neon, ocean, mountains, mono, campfire, cyber, moody, meadow, storm",
+                            )
+                        with gr.Row():
+                            btn_p = gr.Button("📼 Build Portfolio", variant="primary")
+                        with gr.Row():
+                            p_out = gr.Textbox(label="Status", lines=18, interactive=False)
+                        btn_p.click(create_portfolio, [p_themes], [p_out])
             
             with gr.Column(scale=1):
                 gr.HTML("""
