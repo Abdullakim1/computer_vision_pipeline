@@ -102,7 +102,9 @@ class LumaBackend(GeneratorBackend):
     def __init__(self, **env):
         super().__init__(**env)
         self.api_key = os.getenv("LUMA_API_KEY", "")
-        self.base_url = os.getenv("LUMA_BASE_URL", "https://api.lumalabs.ai/dream-machine/v1")
+        self.base_url = (os.getenv("LUMA_BASE_URL")
+                          or os.getenv("LUMA_API_ENDPOINT")
+                          or "https://api.lumalabs.ai/dream-machine/v1")
         self.api_version = os.getenv("LUMA_API_VERSION", "v1")
         self.timeout = int(os.getenv("LUMA_TIMEOUT", "300"))
         self.poll_interval = int(os.getenv("LUMA_POLL_INTERVAL", "5"))

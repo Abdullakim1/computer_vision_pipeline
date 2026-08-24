@@ -15,6 +15,8 @@ metrics into a high-level creative API:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 
 from . import metrics
@@ -42,7 +44,7 @@ class CineForgeStudio:
     def backends():
         """List available backends and their readiness."""
         info = []
-        for name in ("cinematic", "local", "colab", "luma", "seedance", "kling"):
+        for name in ("cinematic", "local", "colab", "luma", "seedance", "kling", "veo"):
             try:
                 b = create_backend(name)
                 info.append({"name": name, "ready": b.check(),
@@ -75,12 +77,83 @@ class CineForgeStudio:
         clip.metadata["metrics"] = metrics.analyze(clip.frames, float(req.fps))
         return clip
 
-    # ------------------------------------------------------------------
-    def image_to_video(self, image_path, width=960, height=540, fps=24,
-                       duration=4.0, look="argo", interp=1, **kw):
-        """Ken-Burns animate a still image with motion interpolation."""
+        # ------------------------------------------------------------------
+    def image_to_video(self, image_path, backend=None, prompt=None,
+                       width=960, height=540, fps=24, duration=4.0,
+                       look="argo", interp=1, **kw):
+        """Animate a still image.
+
+        With a diffusion ``backend`` (``colab``/``local``/``kling``/``seedance``)
+        this dispatches the real image-to-video pipeline (Wan I2V on Colab A100
+        / local GPU, or the Seedance/Kling image-to-video APIs). With ``cinematic``
+        (the default, GPU-free) it runs a Ken-Burns pan + motion-interpolation
+        pass instead.
+        """
+        import os
+
+        backend = backend or os.getenv("default_backend", "cinematic")
+        image_path = str(image_path)
+
+        # --- real diffusion backends ----------------------------------------
+        if backend in ("colab", "local"):
+            obj = create_backend(backend)
+            if not obj.check():
+                raise RuntimeError(f"backend {backend!r} is not ready")
+            req = GenerationRequest(
+                prompt=prompt or "",
+                negative_prompt=kw.get("negative_prompt", ""),
+                width=int(width), height=int(height), fps=int(fps),
+                duration=float(duration),
+                seed=kw.get("seed") if kw.get("seed") is not None else None,
+                motion_strength=float(kw.get("motion_strength", 0.6)),
+                extras={
+                    "style": kw.get("style", "realistic"),
+                    "motion": kw.get("motion"),
+                    "steps": kw.get("steps"),
+                    "guidance_scale": kw.get("guidance_scale"),
+                },
+            )
+            clip = obj.image_to_video(image_path, req)
+            self._generation_count += 1
+            clip.metadata["metrics"] = metrics.analyze(clip.frames, float(req.fps))
+            clip.metadata["backend"] = backend
+            return clip
+
+        if backend in ("kling", "seedance"):
+            obj = create_backend(backend)
+            if not obj.check():
+                raise RuntimeError(f"backend {backend!r} is not ready")
+            req = GenerationRequest(
+                prompt=prompt or "",
+                negative_prompt=kw.get("negative_prompt", ""),
+                width=int(width), height=int(height), fps=int(fps),
+                duration=float(duration),
+                seed=kw.get("seed") if kw.get("seed") is not None else None,
+                # these backends read ``first_frame`` as a base64 image path
+                first_frame=image_path,
+                extras={
+                    "style": kw.get("style", "cinematic"),
+                    "motion": kw.get("motion", "camera_orbit"),
+                    "motion_strength": kw.get("motion_strength", 0.6),
+                },
+            )
+            clip = obj.generate(req)
+            self._generation_count += 1
+            clip.metadata["metrics"] = metrics.analyze(clip.frames, float(req.fps))
+            clip.metadata["backend"] = backend
+            clip.metadata["source_image"] = os.path.basename(image_path)
+            return clip
+
+        if backend == "veo":
+            raise RuntimeError(
+                "veo (Gemini) backend is text-to-video only — it has no "
+                "image-to-video support. Use 'colab', 'local', 'kling' or "
+                "'seedance' for image-to-video."
+            )
+
+        # --- cinematic fallback: GPU-free Ken Burns -------------------------
         import cv2
-        bgr = cv2.imread(str(image_path))
+        bgr = cv2.imread(image_path)
         if bgr is None:
             raise FileNotFoundError(image_path)
         img_rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
@@ -93,8 +166,9 @@ class CineForgeStudio:
         fps_out = float(fps) * (interp or 1)
         clip = GeneratedClip(f"image-to-video: {Path(image_path).name}", "cinematic",
                              np.stack(frames), fps_out,
-                             metadata={"source": str(image_path), "look": look})
+                             metadata={"source": image_path, "look": look})
         clip.metadata["metrics"] = metrics.analyze(clip.frames, fps_out)
+        clip.metadata["backend"] = backend
         self._generation_count += 1
         return clip
 
@@ -119,6 +193,30 @@ class CineForgeStudio:
         combined.metadata["metrics"] = metrics.analyze(combined.frames, float(fps))
         self._generation_count += 1
         return combined
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    def load_video(path, max_frames=600):
+        """Load an existing video file into a GeneratedClip (RGB frames)."""
+        import cv2
+        path = str(path)
+        cap = cv2.VideoCapture(path)
+        if not cap.isOpened():
+            raise FileNotFoundError(f"cannot open video: {path}")
+        fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+        frames = []
+        while len(frames) < max_frames:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        cap.release()
+        if not frames:
+            raise ValueError(f"no frames decoded from {path}")
+        clip = GeneratedClip(Path(path).name, "file", np.stack(frames),
+                             float(fps), metadata={"source": path})
+        clip.metadata["metrics"] = metrics.analyze(clip.frames, float(fps))
+        return clip
 
     # ------------------------------------------------------------------
     def remix(self, clip, target_prompt=None, keep=0.6, seed=None):

@@ -27,7 +27,8 @@ import tempfile
 from typing import List, Optional
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Query
+import numpy as np
+from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Query, Form
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
@@ -45,6 +46,16 @@ app = FastAPI(
 _studio = CineForgeStudio()
 _OUTDIR = Path("outputs/api")
 _OUTDIR.mkdir(parents=True, exist_ok=True)
+_WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+
+
+@app.get("/", include_in_schema=False)
+def index():
+    """Serve the CineForge Studio web frontend."""
+    index_html = _WEB_DIR / "index.html"
+    if not index_html.exists():
+        raise HTTPException(status_code=404, detail="web/index.html is missing")
+    return FileResponse(index_html, media_type="text/html")
 
 
 # ============================================
@@ -67,8 +78,8 @@ class GenerateRequest(BaseModel):
     @field_validator('backend')
     @classmethod
     def validate_backend(cls, v):
-        if v not in ['cinematic', 'colab', 'luma', 'seedance', 'kling']:
-            raise ValueError("Unsupported backend. Use 'cinematic', 'colab', 'luma', 'seedance', or 'kling'")
+        if v not in ['cinematic', 'local', 'colab', 'luma', 'seedance', 'kling', 'veo']:
+            raise ValueError("Unsupported backend. Use 'cinematic', 'local', 'colab', 'luma', 'seedance', 'kling', or 'veo'")
         return v
 
 
@@ -82,16 +93,6 @@ class BatchGenerateRequest(BaseModel):
     duration: float = 4.0
     seed: int = None
     look: str = "argo"
-
-
-class ImageRequest(BaseModel):
-    width: int = Field(960, ge=128, le=3840)
-    height: int = Field(540, ge=128, le=2160)
-    fps: int = Field(24, ge=8, le=60)
-    duration: float = Field(4.0, ge=2.0, le=20.0)
-    look: str = "argo"
-    interp: int = Field(1, ge=1, le=6, description="Interpolation factor")
-    motion: str = Field("orbit", description="Motion type")
 
 
 class StoryRequest(GenerateRequest):
@@ -122,16 +123,16 @@ class CompilationRequest(BaseModel):
 def health():
     """Service health and backend status."""
     backends = _studio.backends()
-    ready_backends = [b for b in backends if b['ready']]
+    ready_backends = [b['name'] for b in backends if b['ready']]
     return {
         "status": "healthy",
         "version": "2.0.0",
         "generations_count": _studio._generation_count,
         "backends": {
-            name: {
-                "ready": info['ready'],
-                "description": info.get('desc', ''),
-            } for name, info in backends.items()
+            b["name"]: {
+                "ready": bool(b.get('ready')),
+                "description": b.get('desc', ''),
+            } for b in backends
         },
         "ready_backends": ready_backends,
         "total_backends": len(backends),
@@ -167,7 +168,7 @@ def batch_info():
         "max_prompts": 50,
         "max_per_prompt": 10,
         "default_backend": "cinematic",
-        "supported_backends": ["cinematic", "colab", "luma", "seedance", "kling"],
+        "supported_backends": ["cinematic", "local", "colab", "luma", "seedance", "kling"],
     }
 
 # ============================================
@@ -268,32 +269,66 @@ def batch_generate(req: BatchGenerateRequest):
 
 
 @app.post("/video/image")
-def image_generate(req: ImageRequest, image: bytes = Body(..., description="Image file as bytes")):
-    """Generate video from static image with Ken Burns effect."""
-    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-    tmp.write(image)
+async def image_generate(
+    image: UploadFile = File(..., description="Still image to animate"),
+    prompt: str = Form("", description="Optional motion/guidance prompt"),
+    backend: str = Form("cinematic", description="cinematic | colab | local | kling | seedance"),
+    width: int = Form(960, ge=128, le=3840),
+    height: int = Form(540, ge=128, le=2160),
+    fps: int = Form(24, ge=8, le=60),
+    duration: float = Form(4.0, ge=1.0, le=20.0),
+    look: str = Form("argo"),
+    interp: int = Form(1, ge=1, le=6),
+    motion: str = Form("camera_orbit"),
+    style: str = Form("realistic"),
+    negative_prompt: str = Form(""),
+    guidance_scale: float = Form(5.0, ge=1.0, le=20.0),
+    steps: int = Form(25, ge=4, le=50),
+    seed: Optional[int] = Form(None),
+):
+    """Generate video from a static image.
+
+    Diffusion backends (``colab``, ``local``, ``kling``, ``seedance``) run a
+    real image-to-video model; ``cinematic`` falls back to a Ken-Burns pan.
+    """
+    suffix = Path(image.filename or "upload.png").suffix or ".png"
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    tmp.write(await image.read())
     tmp.close()
-    
+
     try:
         clip = _studio.image_to_video(
             tmp.name,
-            width=req.width,
-            height=req.height,
-            fps=req.fps,
-            duration=req.duration,
-            look=req.look,
-            interp=req.interp,
-            motion=req.motion,
+            backend=backend,
+            prompt=prompt,
+            width=width,
+            height=height,
+            fps=fps,
+            duration=duration,
+            look=look,
+            interp=interp,
+            motion=motion,
+            style=style,
+            negative_prompt=negative_prompt,
+            guidance_scale=guidance_scale,
+            steps=steps,
+            seed=seed,
         )
+    except RuntimeError as e:
+        if "not ready" in str(e) or "text-to-video only" in str(e):
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        raise
     finally:
         Path(tmp.name).unlink()
-    
+
     out = _OUTDIR / "image_to_video.mp4"
     clip.write_video(out)
-    
+
     return {
         "success": True,
         "file": f"/outputs/{out.name}",
+        "backend": clip.metadata.get("backend"),
+        "model": clip.metadata.get("model"),
         "duration": float(clip.duration_s),
         "frames": clip.T,
         "metrics": clip.metadata.get("metrics", {}),
@@ -334,25 +369,29 @@ def story(req: StoryRequest):
 @app.post("/video/grade")
 def video_grade(file: UploadFile = File(...), look: str = Query(...), intensity: float = Query(1.0)):
     """Apply color grading to uploaded video."""
-    import cv2
-    
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
         tmp.write(file.file.read())
         tmp_path = tmp.name
-    
+
     try:
-        clip = _studio.text_to_video(tmp_path, look=look)
+        clip = _studio.load_video(tmp_path)
+        original = clip.frames.astype(np.float32)
         clip = _studio.regrade(clip, look)
-        
-        out = _OUTDIR / f"graded_{look}_{file.filename}.mp4"
+        if 0.5 <= intensity < 1.0:
+            blended = original * intensity + clip.frames.astype(np.float32) * (1.0 - intensity)
+            clip.frames = np.clip(blended, 0, 255).astype(np.uint8)
+
+        out = _OUTDIR / f"graded_{look}_{Path(file.filename or 'video').stem}.mp4"
         clip.write_video(out)
-        
+
         return {
             "success": True,
             "file": f"/outputs/{out.name}",
             "graded_look": look,
             "intensity": intensity,
         }
+    except (FileNotFoundError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     finally:
         Path(tmp_path).unlink()
 
@@ -360,28 +399,17 @@ def video_grade(file: UploadFile = File(...), look: str = Query(...), intensity:
 @app.post("/video/analyze")
 def analyze_video(req: AnalysisRequest):
     """Analyze video quality with comprehensive metrics."""
-    import cv2
-    
-    cap = cv2.VideoCapture(req.video)
-    frames = []
-    while len(frames) < 300 and cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frames.append(frame_rgb)
-    cap.release()
-    
-    if not frames:
-        raise HTTPException(status_code=400, detail="No frames extracted from video")
-    
-    clip = _studio.text_to_video("analysis", backend="cinematic", frames=frames, fps=req.fps)
+    try:
+        clip = _studio.load_video(req.video)
+    except (FileNotFoundError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
     metrics_data = clip.metadata.get("metrics", {})
-    
+
     return {
         "success": True,
         "video": req.video,
-        "frames": len(frames),
+        "frames": clip.T,
         "metrics": metrics_data,
     }
 
@@ -392,8 +420,7 @@ def create_compilation(req: CompilationRequest):
     try:
         clips = []
         for clip_path in req.clips:
-            clip = _studio.text_to_video(clip_path, backend="cinematic")
-            clips.append(clip)
+            clips.append(_studio.load_video(clip_path))
         
         compilation = _studio.create_compilation(
             clips=clips,

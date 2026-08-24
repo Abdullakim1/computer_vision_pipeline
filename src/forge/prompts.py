@@ -63,3 +63,44 @@ class CinematicPrompter:
             idea = " ".join(rng.sample(words, min(k, len(words))))
             shots.append(self.expand(idea, seed=rng.randrange(1 << 16)))
         return shots
+
+
+# ---------------------------------------------------------------------------
+# Image-to-video helper: build a *motion* prompt when the caller only hands us
+# a still image (no text prompt). Reads zero GPU — just string ops — so it is
+# cheap and safe to import from the local backend on a CPU-only box.
+# ---------------------------------------------------------------------------
+_MOTION_VERBS = (
+    "pans across", "drifts over", "slowly reveals", "glides past",
+    "sweeps across", "travels through",
+)
+_LIGHT_TAGS = ("golden-hour light", "dramatic shadows", "soft ambient light",
+               "backlit rim light", "neon-lit haze")
+
+
+def prompt_image_motion(image_path, seed=None) -> str:
+    """Synthesise a text-to-motion prompt guiding an I2V model from a still.
+
+    The prompt is derived purely from the *name* of the file (no vision model),
+    so it runs anywhere, while still giving the diffusion model a cinematic
+    nudge toward camera motion + consistent lighting rather than a static copy.
+    """
+    import hashlib as _hl
+    import random
+
+    name = str(image_path).rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    stem = name.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").strip().lower()
+    if len(stem) < 3:
+        stem = "a cinematic scene"
+
+    rng = random.Random(seed if seed is not None else
+                        int(_hl.sha256(name.encode("utf-8")).hexdigest()[:8], 16))
+    motion = rng.choice(_MOTION_VERBS)
+    light = rng.choice(_LIGHT_TAGS)
+    verb = rng.choice(("captures", "shows", "reveals", "frames"))
+
+    return (
+        f"photorealistic live-action footage, camera {motion} {stem}, "
+        f"slow cinematic dolly, {light}, depth of field, film grain, "
+        f"natural motion, 4k. The scene {verb} {stem}, stable tracking shot."
+    )

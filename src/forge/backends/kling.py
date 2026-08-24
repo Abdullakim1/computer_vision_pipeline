@@ -102,7 +102,9 @@ class KlingBackend(GeneratorBackend):
     def __init__(self, **env):
         super().__init__(**env)
         self.api_key = os.getenv("KLING_API_KEY", "")
-        self.base_url = os.getenv("KLING_BASE_URL", "https://api.klingai.com")
+        self.base_url = (os.getenv("KLING_BASE_URL")
+                          or os.getenv("KLING_API_ENDPOINT")
+                          or "https://api.klingai.com")
         self.api_version = os.getenv("KLING_API_VERSION", "v1")
         self.timeout = int(os.getenv("KLING_TIMEOUT", "300"))
         self.poll_interval = int(os.getenv("KLING_POLL_INTERVAL", "5"))

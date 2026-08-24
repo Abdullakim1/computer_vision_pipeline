@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/Version-2.0.0-orange)
 
-[English](#-cineforge) | [简体中文](#-cineforge-简体中文)
+[English](#-cineforge)
 
 **Production-Grade Video Generation Platform for AI/ML Professionals**
 
@@ -36,23 +36,23 @@ CineForge is an advanced, production-ready video generation studio that bridges 
 - **Atmospheric Effects**: Volumetric glow, lens flares, fog, haze, horizon glow
 
 ### 🌐 Cloud Integration
-- **Colab Backend (free, realistic)**: [Wan 2.1 T2V 1.3B](https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B-Diffusers) hosted on a **free Google Colab T4** — no API key, no payment. See [colab/CineForge_Colab_Video_Server.ipynb](colab/CineForge_Colab_Video_Server.ipynb)
+- **Colab Backend (recommended, photoreal)**: [Wan](https://huggingface.co/Wan-AI) **text-to-video AND image-to-video** hosted on your **Colab GPU** — an A100 (Colab Pro) gives the most powerful output; it also falls back to a free T4. See [colab/CineForge_Colab_Video_Server.ipynb](colab/CineForge_Colab_Video_Server.ipynb)
 - **Luma Backend**: Luma AI Dream Machine API (Ray 2) for photorealistic text-to-video
 - **Seedance Backend**: ByteDance Provenance integration with style presets
 - **Kling Backend**: Kua'you Video 3.0 API with extended duration support
 - **Automatic Polling**: Background task management for cloud generation
 
-#### Realistic video generation (free, via Colab)
+#### Realistic video generation (via Colab)
 The default `cinematic` backend is procedural, so it renders stylized/animated scenes. For
-**photorealistic** output without paying for Kling/Seedance/Luma:
+**photorealistic** text-to-video *and* image-to-video:
 
-1. Open `colab/CineForge_Colab_Video_Server.ipynb` in Google Colab, set Runtime → **T4 GPU** (free), run all cells.
+1. Open `colab/CineForge_Colab_Video_Server.ipynb` in Google Colab, set Runtime → **GPU** (A100 on Colab Pro), run all cells.
 2. Copy the printed `PUBLIC API URL` into `.env`: `COLAB_BASE_URL=<url>`
-3. Generate:
+3. Open the studio UI and pick the **colab** backend (or via CLI):
    ```bash
    python -m src.main --prompt "zombies walking on the street in a city" --backend colab
    ```
-   Prompts are auto-enhanced with live-action realism keywords; pass `style="raw"` in `extras` to disable. First run downloads ~9 GB to Colab; each 5s 480p clip then takes ~2–4 min. The URL expires when the Colab runtime disconnects — re-run the last two cells and update `.env`.
+   Prompts are auto-enhanced with live-action realism keywords; pass `style="raw"` in `extras` to disable. First run downloads model weights to Colab; the URL expires when the runtime disconnects — re-run the last cells and update `.env`.
 
 ### 🎨 Cinematic Grading
 - **18+ Color Presets**: Argo, Teal-Orange, Golden, Noir, Cyber, Vintage, and more
@@ -110,11 +110,11 @@ cineforge stats
 ### Using the Web Interface
 
 ```bash
-# Start the Gradio web UI
+# Start the API (serves the studio web UI at the root URL)
 cd /home/kim/computer_vision_pipeline
-PYTHONPATH=. python3 -m src.gradio_ui
+PYTHONPATH=. uvicorn src.api:app --port 8000
 
-# Then open http://localhost:7860 in your browser
+# Then open http://localhost:8000 in your browser
 ```
 
 ### Using the REST API
@@ -170,7 +170,7 @@ of the web UI.
 ```
 CineForge Studio
 ├── Procedural Backend (GPU-free)
-│   ├── Theme Engine (11 themes)
+│   ├── Theme Engine (14 themes)
 │   ├── Particle System
 │   ├── Atmospheric Effects
 │   └── Camera Motion Controller
@@ -210,6 +210,8 @@ CineForge Studio
 | Moody Fog | Dark Tone | Noir | Mist |
 | Meadow | Grass Field | Golden | Pollen |
 | Storm | Lightning | Argo | Rain |
+| City | Urban Skyline | Cyber | Lights |
+| Apocalypse | Ruins & Zombies | Moody | Ash |
 
 ---
 
@@ -225,3 +227,50 @@ CineForge Studio
 - **Jib**: Rising sweeping arc shot
 - **Tracking**: Steady lateral follow
 - **Static**: Locked-off tripod frame
+
+---
+
+## 🖥️ Interfaces
+
+### CLI
+
+```bash
+python -m src.main info                  # backend & environment status
+python -m src.main gen "aurora over a valley" --backend cinematic
+python -m src.main story "a sun sets over ancient ruins" --beats 3
+python -m src.main i2v photo.jpg
+python -m src.main grade clip.mp4 --look golden
+python -m src.main metrics clip.mp4
+python -m src.main portfolio --outdir media/portfolio
+```
+
+### Web UI (recommended)
+
+A modern single-page studio served directly by the API:
+
+```bash
+PYTHONPATH=. uvicorn src.api:app --port 8000   # open http://localhost:8000
+```
+
+Features a dark cinematic interface with three panels:
+
+| Panel | What it does |
+|-------|--------------|
+| **Text → Video** | Prompt + negative prompt, backend picker, duration/FPS/resolution/steps/CFG/seed |
+| **Image → Video** | Drag-&-drop a still image + optional motion prompt; runs real diffusion I2V (Colab Wan / local / Kling / Seedance) |
+| **Grade / Analyze** | Re-color an existing clip with 18+ looks and inspect quality metrics |
+
+Live backend health is shown in the header; the colab backend auto-reports readiness
+from `COLAB_BASE_URL`.
+
+### REST API (FastAPI)
+
+```bash
+PYTHONPATH=. uvicorn src.api:app --reload --port 8000   # docs at /docs
+```
+
+---
+
+## 📄 License
+
+MIT

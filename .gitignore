@@ -1,0 +1,44 @@
+# ============================================================================
+# CineForge .gitignore
+# Keeps generated media, caches, secrets and model weights out of version control.
+# ============================================================================
+
+# --- Python caches -----------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+.ipy_checkpoints/
+
+# --- Environment / secrets ----------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- Generated media & runtime output (never commit binaries) ----------------
+/media/
+/outputs/
+/logs/
+*.mp4
+*.gif
+*.png
+*.jpg
+*.jpeg
+
+# --- Model weights (large binaries; hold them elsewhere) ----------------------
+/models/*.onnx
+/models/*.safetensors
+/models/*.bin
+/models/*.pth
+
+# --- IDE / OS noise ------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Misc generated notebooks / reports ----------------------------------------
+*.ipynb_checkpoints
+metrics_report.txt

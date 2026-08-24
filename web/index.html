@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CineForge Studio</title>
+<style>
+  :root {
+    --bg:#07070d; --bg-soft:#0d0d17; --card:rgba(255,255,255,.045);
+    --border:rgba(255,255,255,.09); --text:#eceaf6; --muted:#9a97ad;
+    --accent:#7c5cff; --accent2:#00d4ff; --ok:#34e39a; --err:#ff6b81;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden;
+  }
+  body::before, body::after {
+    content:''; position:fixed; width:60vw; height:60vw; border-radius:50%;
+    filter:blur(140px); opacity:.16; z-index:0; pointer-events:none;
+  }
+  body::before { background:var(--accent); top:-25vw; left:-15vw; animation:f1 18s ease-in-out infinite alternate; }
+  body::after { background:var(--accent2); bottom:-30vw; right:-20vw; animation:f2 22s ease-in-out infinite alternate; }
+  @keyframes f1 { to { transform:translate(8vw,6vh) scale(1.15);} }
+  @keyframes f2 { to { transform:translate(-6vw,-8vh) scale(1.1);} }
+  header {
+    position:sticky; top:0; z-index:10;
+    backdrop-filter:blur(14px); background:rgba(7,7,13,.72);
+    border-bottom:1px solid var(--border);
+  }
+  .nav { max-width:1180px; margin:auto; padding:14px 24px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+  .logo { display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.06rem; letter-spacing:-.3px; }
+  .mark {
+    width:34px; height:34px; border-radius:11px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid; place-items:center; box-shadow:0 4px 18px rgba(124,92,255,.5);
+  }
+  .pill { display:flex; align-items:center; gap:7px; font-size:.78rem; color:var(--muted); }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); }
+  .dot.on { background:var(--ok); box-shadow:0 0 10px var(--ok); }
+
+  main { position:relative; z-index:1; max-width:1180px; margin:auto; padding:40px 24px 90px; }
+  h1 { font-size:clamp(2rem,5vw,3.1rem); line-height:1.08; letter-spacing:-1.5px; }
+  .grad { background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { color:var(--muted); margin-top:12px; max-width:640px; line-height:1.55; }
+  .tabs { display:flex; gap:6px; margin-top:30px; padding:5px; background:var(--card); border:1px solid var(--border); border-radius:999px; width:fit-content; flex-wrap:wrap; }
+  .tab-btn {
+    border:0; background:transparent; color:var(--muted); cursor:pointer;
+    padding:9px 20px; border-radius:999px; font:inherit; font-size:.88rem; font-weight:600; transition:all .2s;
+  }
+  .tab-btn:hover { color:var(--text); }
+  .tab-btn.active { background:linear-gradient(135deg,var(--accent),#5b3fd6); color:#fff; box-shadow:0 4px 16px rgba(124,92,255,.45); }
+  .panel { display:none; margin-top:26px; }
+  .panel.active { display:block; animation:fade .35s ease; }
+  @keyframes fade { from { opacity:0; transform:translateY(8px);} to { opacity:1; transform:none;} }
+  .grid { display:grid; grid-template-columns:minmax(320px,5fr) minmax(340px,6fr); gap:22px; align-items:start; }
+  @media (max-width:900px){ .grid { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px; backdrop-filter:blur(8px); }
+  .lab { display:block; font-size:.74rem; font-weight:600; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin-bottom:8px; }
+  textarea, select, input[type=number] {
+    width:100%; background:rgba(255,255,255,.05); color:var(--text);
+    border:1px solid var(--border); border-radius:12px; padding:12px 14px;
+    font:inherit; font-size:.92rem; outline:none; transition:border-color .15s, box-shadow .15s;
+  }
+  textarea:focus, select:focus, input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(124,92,255,.22); }
+  textarea { resize:vertical; min-height:96px; }
+  select option { background:var(--bg-soft); }
+  input[type=range] { width:100%; accent-color:var(--accent); cursor:pointer; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
+  .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-top:14px; }
+  .val { float:right; color:var(--accent2); font-weight:600; font-variant-numeric:tabular-nums; }
+  details.adv { margin-top:16px; border-top:1px dashed var(--border); padding-top:14px; }
+  details.adv summary { cursor:pointer; color:var(--muted); font-size:.84rem; font-weight:600; list-style:none; }
+  .btn {
+    width:100%; margin-top:18px; border:0; cursor:pointer; padding:14px;
+    border-radius:13px; font:inherit; font-size:.95rem; font-weight:700; color:#fff;
+    background:linear-gradient(135deg,var(--accent),#5b3fd6);
+    box-shadow:0 8px 26px rgba(124,92,255,.42); transition:transform .15s, box-shadow .15s, filter .15s;
+  }
+  .btn:hover:not(:disabled) { transform:translateY(-2px); box-shadow:0 12px 32px rgba(124,92,255,.55); }
+  .btn:disabled { filter:grayscale(.6); opacity:.65; cursor:wait; }
+  .drop {
+    margin-top:4px; border:1.5px dashed rgba(124,92,255,.45); border-radius:14px;
+    padding:28px 16px; text-align:center; color:var(--muted); font-size:.86rem;
+    transition:all .2s; cursor:pointer; background:rgba(124,92,255,.05);
+  }
+  .drop.hover { background:rgba(124,92,255,.14); border-color:var(--accent); color:var(--text); }
+  .drop img { max-height:170px; border-radius:10px; margin-top:10px; display:none; }
+  .viewer { min-height:300px; display:grid; place-items:center; }
+  .ph { color:var(--muted); text-align:center; font-size:.9rem; line-height:1.7; }
+  .ph .icon { font-size:2.4rem; display:block; margin-bottom:10px; opacity:.75; }
+  video.result { width:100%; border-radius:13px; background:#000; display:none; box-shadow:0 14px 44px rgba(0,0,0,.55); }
+  .spinner { width:46px; height:46px; border-radius:50%; border:3.5px solid rgba(124,92,255,.2); border-top-color:var(--accent); animation:spin .85s linear infinite; margin-bottom:14px; }
+  @keyframes spin { to { transform:rotate(360deg);} }
+  #toast {
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(130%);
+    z-index:50; padding:13px 22px; border-radius:13px; font-size:.88rem; font-weight:600;
+    background:var(--bg-soft); border:1px solid var(--border); box-shadow:0 12px 40px rgba(0,0,0,.6);
+    transition:transform .3s cubic-bezier(.2,.9,.3,1.2); max-width:90vw;
+  }
+  #toast.show { transform:translateX(-50%) translateY(0); }
+  #toast.ok { border-color:rgba(52,227,154,.5); color:var(--ok); }
+  #toast.err { border-color:rgba(255,107,129,.5); color:var(--err); }
+  .note { margin-top:8px; font-size:.78rem; color:var(--muted); line-height:1.5; }
+</style>
+</head>
+<body>
+<header><div class="nav">
+  <div class="logo"><div class="mark">🎬</div>CineForge <span style="color:var(--muted);font-weight:500">Studio</span></div>
+  <div class="pill"><span class="dot" id="hdot"></span><span id="htext">connecting…</span></div>
+</div></header>
+<main>
+  <h1>Cinematic video,<br/>from <span class="grad">a prompt or an image</span>.</h1>
+  <p class="sub">Powered by Wan diffusion on your Colab GPU — with Seedance, Kling, Luma &amp; Veo adapters alongside. Describe a shot, or upload a still and let the model bring it to life.</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-panel="t2v">✍️ Text → Video</button>
+    <button class="tab-btn" data-panel="i2v">🖼️ Image → Video</button>
+    <button class="tab-btn" data-panel="grade">🎨 Grade / Analyze</button>
+  </div>
+
+
+  <!-- ============ TEXT → VIDEO ============ -->
+  <section class="panel active" id="panel-t2v">
+    <div class="grid">
+      <div class="card">
+        <label class="lab" for="t2v-prompt">Prompt</label>
+        <textarea id="t2v-prompt" placeholder="photorealistic zombies shambling down an abandoned city street at dusk, fog, handheld camera…"></textarea>
+
+        <div class="row">
+          <div>
+            <label class="lab" for="t2v-backend">Backend</label>
+            <select id="t2v-backend"></select>
+          </div>
+          <div>
+            <label class="lab" for="t2v-style">Style steering</label>
+            <select id="t2v-style">
+              <option value="realistic">realistic</option>
+              <option value="cinematic">cinematic</option>
+              <option value="anime">anime</option>
+              <option value="none">none (raw prompt)</option>
+            </select>
+          </div>
+        </div>
+        <p class="note" id="t2v-note"></p>
+
+        <details class="adv" open>
+          <summary>Output &amp; sampling</summary>
+          <div class="row">
+            <div><label class="lab">Duration <span class="val" id="v-dur">4s</span></label>
+              <input type="range" id="t2v-dur" min="1" max="10" step="0.5" value="4"/></div>
+            <div><label class="lab">FPS <span class="val" id="v-fps">24</span></label>
+              <input type="range" id="t2v-fps" min="8" max="30" step="1" value="24"/></div>
+          </div>
+          <div class="row">
+            <div><label class="lab">Width <span class="val" id="v-w">832</span></label>
+              <input type="range" id="t2v-w" min="256" max="1920" step="16" value="832"/></div>
+            <div><label class="lab">Height <span class="val" id="v-h">480</span></label>
+              <input type="range" id="t2v-h" min="144" max="1080" step="16" value="480"/></div>
+          </div>
+          <div class="row">
+            <div><label class="lab">Steps <span class="val" id="v-steps">25</span></label>
+              <input type="range" id="t2v-steps" min="4" max="50" step="1" value="25"/></div>
+            <div><label class="lab">Guidance (CFG) <span class="val" id="v-cfg">5.0</span></label>
+              <input type="range" id="t2v-cfg" min="1" max="15" step="0.5" value="5"/></div>
+          </div>
+                    <div class="row">
+            <div><label class="lab" for="t2v-seed">Seed (blank = random)</label>
+              <input type="number" id="t2v-seed" placeholder="e.g. 42"/></div>
+            <div><label class="lab" for="t2v-negative">Negative prompt</label>
+              <textarea id="t2v-negative" rows="1" placeholder="cartoon, blurry, low quality…"></textarea></div>
+          </div>
+        </details>
+
+        <button class="btn" id="t2v-go">🎬 Generate video</button>
+      </div>
+
+      <div class="card">
+        <div class="viewer" id="t2v-viewer">
+          <div class="ph"><span class="icon">🎞️</span>Your generated clip will appear here.<br/>First generation on a fresh Colab runtime downloads the model (~9 GB).</div>
+        </div>
+        <video class="result" id="t2v-video" controls autoplay loop></video>
+        <p class="note" id="t2v-meta"></p>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ============ IMAGE → VIDEO ============ -->
+  <section class="panel" id="panel-i2v">
+    <div class="grid">
+      <div class="card">
+        <label class="lab">Still image</label>
+        <div class="drop" id="drop">
+          <span id="drop-text">Drop an image here, or click to browse<br/>(png · jpg · webp)</span>
+          <img id="drop-preview" alt="preview"/>
+        </div>
+        <input type="file" id="i2v-file" accept="image/*" style="display:none"/>
+
+        <div style="margin-top:16px">
+          <label class="lab" for="i2v-prompt">Motion prompt (optional)</label>
+          <textarea id="i2v-prompt" rows="2" placeholder="slow cinematic dolly-in, hair moving in the wind, drifting clouds…"></textarea>
+        </div>
+
+        <div class="row">
+          <div>
+            <label class="lab" for="i2v-backend">Backend</label>
+            <select id="i2v-backend"></select>
+            <p class="note">Wan I2V on Colab (A100) gives the most photoreal motion.</p>
+          </div>
+          <div>
+            <label class="lab" for="i2v-style">Style steering</label>
+            <select id="i2v-style">
+              <option value="realistic">realistic</option>
+              <option value="cinematic">cinematic</option>
+              <option value="anime">anime</option>
+              <option value="none">none (raw prompt)</option>
+            </select>
+          </div>
+        </div>
+
+        <details class="adv" open>
+          <summary>Output &amp; sampling</summary>
+          <div class="row">
+            <div><label class="lab">Duration <span class="val" id="iv-dur">4s</span></label>
+              <input type="range" id="i2v-dur" min="1" max="10" step="0.5" value="4"/></div>
+            <div><label class="lab">FPS <span class="val" id="iv-fps">24</span></label>
+              <input type="range" id="i2v-fps" min="8" max="30" step="1" value="24"/></div>
+          </div>
+          <div class="row">
+            <div><label class="lab">Width <span class="val" id="iv-w">832</span></label>
+              <input type="range" id="i2v-w" min="256" max="1920" step="16" value="832"/></div>
+            <div><label class="lab">Height <span class="val" id="iv-h">480</span></label>
+              <input type="range" id="i2v-h" min="144" max="1080" step="16" value="480"/></div>
+          </div>
+          <div class="row">
+            <div><label class="lab">Steps <span class="val" id="iv-steps">25</span></label>
+              <input type="range" id="i2v-steps" min="4" max="50" step="1" value="25"/></div>
+            <div><label class="lab">Guidance (CFG) <span class="val" id="iv-cfg">5.0</span></label>
+              <input type="range" id="i2v-cfg" min="1" max="15" step="0.5" value="5"/></div>
+          </div>
+          <div class="row">
+            <div><label class="lab" for="i2v-seed">Seed (blank = random)</label>
+              <input type="number" id="i2v-seed" placeholder="e.g. 42"/></div>
+          </div>
+        </details>
+
+        <button class="btn" id="i2v-go">🎭 Animate image</button>
+      </div>
+
+      <div class="card">
+        <div class="viewer" id="i2v-viewer">
+          <div class="ph"><span class="icon">🖼️→🎞️</span>Upload a still and the model will move it.</div>
+        </div>
+        <video class="result" id="i2v-video" controls autoplay loop></video>
+        <p class="note" id="i2v-meta"></p>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ============ GRADE / ANALYZE ============ -->
+  <section class="panel" id="panel-grade">
+    <div class="grid">
+      <div class="card">
+        <label class="lab" for="g-look">Cinematic look</label>
+        <select id="g-look"></select>
+        <div style="margin-top:16px">
+          <label class="lab">Video clip</label>
+          <div class="drop" id="gdrop"><span id="gdrop-text">Drop an .mp4 here, or click to browse</span></div>
+          <input type="file" id="g-file" accept="video/*" style="display:none"/>
+        </div>
+        <button class="btn" id="g-go">🎨 Apply grade</button>
+      </div>
+      <div class="card">
+        <div class="viewer" id="g-viewer">
+          <div class="ph"><span class="icon">🎨</span>Graded output appears here.</div>
+        </div>
+        <video class="result" id="g-video" controls loop></video>
+        <p class="note" id="g-meta"></p>
+      </div>
+    </div>
+  </section>
+<script>
+const $ = id => document.getElementById(id);
+const BACKEND_HELP = {
+  colab: 'Wan T2V + I2V on your Colab GPU (A100 = most powerful). Set COLAB_BASE_URL in .env from the notebook URL.',
+  local: 'Wan running on this machine CUDA GPU.',
+  cinematic: 'GPU-free procedural cinematography - instant, stylized.',
+  luma: 'Luma Dream Machine cloud API.',
+  seedance: 'ByteDance Seedance cloud API.',
+  kling: 'Kling cloud API.',
+  veo: 'Google Veo / Gemini API. Text-to-video only.'
+};
+
+let toastTimer;
+function toast(msg, cls) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = cls || '';
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 6000);
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    $('panel-' + btn.dataset.panel).classList.add('active');
+  });
+});
+
+[['t2v-dur','v-dur',v=>v+'s'],['t2v-fps','v-fps'],['t2v-w','v-w'],['t2v-h','v-h'],
+ ['t2v-steps','v-steps'],['t2v-cfg','v-cfg'],['i2v-dur','iv-dur',v=>v+'s'],
+ ['i2v-fps','iv-fps'],['i2v-w','iv-w'],['i2v-h','iv-h'],
+ ['i2v-steps','iv-steps'],['i2v-cfg','iv-cfg']].forEach(([inp,out,fmt]) => {
+  const el = $(inp);
+  el.addEventListener('input', () => { $(out).textContent = fmt ? fmt(el.value) : el.value; });
+});
+
+async function refreshHealth() {
+  try {
+    const r = await fetch('/health');
+    const j = await r.json();
+    $('hdot').classList.add('on');
+    $('htext').textContent = Object.values(j.backends || {}).filter(b => b.ready).length
+      + '/' + j.total_backends + ' backends ready';
+    return j.backends || {};
+  } catch (e) {
+    $('htext').textContent = 'API offline';
+    return {};
+  }
+}
+
+function fillBackends(selectEl, status, exclude) {
+  selectEl.innerHTML = '';
+  let firstReady = null;
+  for (const name of ['colab','local','cinematic','luma','seedance','kling','veo']) {
+    if (exclude && exclude.includes(name)) continue;
+    const ready = status[name];
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name + (ready ? '  ✅' : '');
+    if (!firstReady && ready) firstReady = name;
+    selectEl.appendChild(opt);
+  }
+  if (firstReady) selectEl.value = firstReady;
+  syncNote();
+}
+function syncNote() {
+  $('t2v-note').textContent = BACKEND_HELP[$('t2v-backend').value] || '';
+}
+
+function showVideo(viewerId, videoId, metaId, url, text) {
+  $(viewerId).style.display = 'none';
+  const v = $(videoId);
+  v.src = url; v.style.display = 'block'; v.load();
+  if (metaId) $(metaId).textContent = text || '';
+}
+function showBusy(viewerId, videoId, msg) {
+  $(videoId).style.display = 'none';
+  const w = $(viewerId);
+  w.style.display = 'grid';
+  w.innerHTML = '<div class="ph"><div class="spinner"></div>' + msg +
+    '<br/>This can take a few minutes on the GPU.</div>';
+}
+function resetViewer(viewerId, icon, msg) {
+  $(viewerId).style.display = 'grid';
+  $(viewerId).innerHTML = '<div class="ph"><span class="icon">' + icon + '</span>' + msg + '</div>';
+}
+
+function commonPayload(prefix) {
+  return {
+    width: parseInt($(prefix+'-w').value, 10),
+    height: parseInt($(prefix+'-h').value, 10),
+    fps: parseInt($(prefix+'-fps').value, 10),
+    duration: parseFloat($(prefix+'-dur').value),
+    steps: parseInt($(prefix+'-steps').value, 10),
+    guidance_scale: parseFloat($(prefix+'-cfg').value)
+  };
+}
+</script>
+
+
+  <footer style="margin-top:60px;text-align:center;color:var(--muted);font-size:.78rem;opacity:.7">
+    CineForge Studio · Wan T2V + I2V on Colab · Seedance &amp; Kling adapters included
+  </footer>
+</main>
+<div id="toast"></div>
+
+<script>
+$('t2v-go').addEventListener('click', async () => {
+  const prompt = $('t2v-prompt').value.trim();
+  if (!prompt) { toast('Please enter a prompt first.', 'err'); return; }
+  const btn = $('t2v-go');
+  btn.disabled = true;
+  showBusy('t2v-viewer','t2v-video','Sampling your shot…');
+  try {
+    const body = Object.assign({
+      prompt: prompt,
+      negative_prompt: $('t2v-negative').value.trim(),
+      backend: $('t2v-backend').value,
+      style: $('t2v-style').value,
+      seed: $('t2v-seed').value ? parseInt($('t2v-seed').value,10) : null
+    }, commonPayload('t2v'));
+    const r = await fetch('/video/generate', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    const j = await r.json();
+    if (!r.ok || !j.success) throw new Error(typeof j.detail === 'string' ? j.detail : ('HTTP ' + r.status));
+    showVideo('t2v-viewer','t2v-video','t2v-meta', j.file,
+      'backend: ' + (j.backend||'?') + ' · frames: ' + j.frames + ' · quality: ' +
+      ((j.metrics||{}).perceptual_quality ?? 'n/a'));
+    toast('Video generated ✔', 'ok');
+  } catch (e) {
+    resetViewer('t2v-viewer','🎞️','Generation failed.');
+    toast('Failed: ' + e.message, 'err');
+  } finally { btn.disabled = false; }
+});
+
+let pickedFile = null;
+const drop = $('drop');
+drop.addEventListener('click', () => $('i2v-file').click());
+['dragenter','dragover'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { if (e.dataTransfer.files[0]) pickImage(e.dataTransfer.files[0]); });
+$('i2v-file').addEventListener('change', e => { if (e.target.files[0]) pickImage(e.target.files[0]); });
+function pickImage(file) {
+  pickedFile = file;
+  const img = $('drop-preview');
+  img.src = URL.createObjectURL(file);
+  img.style.display = 'inline-block';
+  $('drop-text').textContent = file.name + ' — click to change';
+}
+
+$('i2v-go').addEventListener('click', async () => {
+  if (!pickedFile) { toast('Please choose an image first.', 'err'); return; }
+  const btn = $('i2v-go');
+  btn.disabled = true;
+  showBusy('i2v-viewer','i2v-video','Animating your still…');
+  try {
+    const fd = new FormData();
+    fd.append('image', pickedFile);
+    fd.append('prompt', $('i2v-prompt').value.trim());
+    fd.append('backend', $('i2v-backend').value);
+    fd.append('style', $('i2v-style').value);
+    if ($('i2v-seed').value) fd.append('seed', $('i2v-seed').value);
+    const c = commonPayload('i2v');
+    Object.keys(c).forEach(k => fd.append(k, c[k]));
+    const r = await fetch('/video/image', { method:'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok || !j.success) throw new Error(typeof j.detail === 'string' ? j.detail : ('HTTP ' + r.status));
+    showVideo('i2v-viewer','i2v-video','i2v-meta', j.file,
+      'backend: ' + (j.backend||'?') + ' · model: ' + (j.model||'?') + ' · frames: ' + j.frames);
+    toast('Animation ready ✔', 'ok');
+  } catch (e) {
+    resetViewer('i2v-viewer','🖼️→🎞️','Upload a still and the model will move it.');
+    toast('Failed: ' + e.message, 'err');
+  } finally { btn.disabled = false; }
+});
+</script>
+
+<script>
+let gFile = null;
+const gdrop = $('gdrop');
+gdrop.addEventListener('click', () => $('g-file').click());
+$('g-file').addEventListener('change', e => {
+  gFile = e.target.files[0] || null;
+  $('gdrop-text').textContent = gFile ? gFile.name : 'Drop an .mp4 here, or click to browse';
+});
+
+$('g-go').addEventListener('click', async () => {
+  if (!gFile) { toast('Choose an .mp4 to grade.', 'err'); return; }
+  const btn = $('g-go'); btn.disabled = true;
+  showBusy('g-viewer','g-video','Grading…');
+  try {
+    const fd = new FormData();
+    fd.append('file', gFile);
+    const r = await fetch('/video/grade?look=' + encodeURIComponent($('g-look').value), {
+      method:'POST', body: fd
+    });
+    const j = await r.json();
+    if (!r.ok || !j.success) throw new Error(typeof j.detail === 'string' ? j.detail : ('HTTP ' + r.status));
+    showVideo('g-viewer','g-video','g-meta', j.file, 'look: ' + j.graded_look);
+    toast('Graded ✔', 'ok');
+  } catch (e) {
+    resetViewer('g-viewer','🎨','Graded output appears here.');
+    toast('Failed: ' + e.message, 'err');
+  } finally { btn.disabled = false; }
+});
+
+(async function init() {
+  const status = await refreshHealth();
+  fillBackends($('t2v-backend'), status);
+  fillBackends($('i2v-backend'), status, ['veo']);
+  try {
+    const r = await fetch('/video/lookpresets');
+    const looks = await r.json();
+    const sel = $('g-look');
+    (Array.isArray(looks) ? looks : looks.looks || []).forEach(l => {
+      const o = document.createElement('option');
+      o.value = typeof l === 'string' ? l : (l.name || l.look || '');
+      o.textContent = o.value;
+      sel.appendChild(o);
+    });
+    sel.value = sel.querySelector('option[value=golden]') ? 'golden' : sel.value;
+  } catch (e) { /* non-fatal */ }
+})();
+</script>
+</body>
+</html>
+

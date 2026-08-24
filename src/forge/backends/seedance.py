@@ -90,7 +90,9 @@ class SeedanceBackend(GeneratorBackend):
         # Seedance is ByteDance's video model served by Volcano Engine (Ark).
         # The endpoint is pluggable via env so the adapter can target any
         # Seedance-compatible gateway. (Do not confuse with Kling.)
-        self.base_url = os.getenv("SEEDANCE_BASE_URL", "https://ark.cn-beijing.volces.com/api")
+        self.base_url = (os.getenv("SEEDANCE_BASE_URL")
+                          or os.getenv("SEEDANCE_API_ENDPOINT")
+                          or "https://ark.cn-beijing.volces.com/api")
         self.api_version = os.getenv("SEEDANCE_API_VERSION", "v3")
         self.timeout = int(os.getenv("SEEDANCE_TIMEOUT", "300"))
         self.poll_interval = int(os.getenv("SEEDANCE_POLL_INTERVAL", "3"))

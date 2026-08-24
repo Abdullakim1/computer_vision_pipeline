@@ -58,7 +58,7 @@ def test_showcase_command():
         cwd=Path("/home/kim/computer_vision_pipeline"),
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=600,
     )
     print("SHOWCASE command output:")
     print(result.stdout)

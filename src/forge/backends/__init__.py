@@ -41,6 +41,7 @@ def create_backend(name: str, **kw):
         "luma": ("luma", "LumaBackend"),
         "seedance": ("seedance", "SeedanceBackend"),
         "kling": ("kling", "KlingBackend"),
+        "veo": ("veo", "VeoBackend"),
     }
     if name not in sources:
         raise BackendNotFound(
