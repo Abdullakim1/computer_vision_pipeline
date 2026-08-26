@@ -38,6 +38,7 @@ def create_backend(name: str, **kw):
         "cinematic": ("cinematic", "CinematicBackend"),
         "local": ("local", "LocalLatentBackend"),
         "colab": ("colab", "ColabBackend"),
+        "kaggle": ("kaggle", "KaggleBackend"),
         "luma": ("luma", "LumaBackend"),
         "seedance": ("seedance", "SeedanceBackend"),
         "kling": ("kling", "KlingBackend"),

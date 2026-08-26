@@ -111,7 +111,7 @@
 </div></header>
 <main>
   <h1>Cinematic video,<br/>from <span class="grad">a prompt or an image</span>.</h1>
-  <p class="sub">Powered by Wan diffusion on your Colab GPU — with Seedance, Kling, Luma &amp; Veo adapters alongside. Describe a shot, or upload a still and let the model bring it to life.</p>
+  <p class="sub">Powered by Wan diffusion on your Colab or Kaggle GPU — with Seedance, Kling, Luma &amp; Veo adapters alongside. Describe a shot, or upload a still and let the model bring it to life.</p>
 
   <div class="tabs">
     <button class="tab-btn active" data-panel="t2v">✍️ Text → Video</button>
@@ -148,7 +148,7 @@
           <summary>Output &amp; sampling</summary>
           <div class="row">
             <div><label class="lab">Duration <span class="val" id="v-dur">4s</span></label>
-              <input type="range" id="t2v-dur" min="1" max="10" step="0.5" value="4"/></div>
+              <input type="range" id="t2v-dur" min="2" max="10" step="0.5" value="4"/></div>
             <div><label class="lab">FPS <span class="val" id="v-fps">24</span></label>
               <input type="range" id="t2v-fps" min="8" max="30" step="1" value="24"/></div>
           </div>
@@ -206,7 +206,7 @@
           <div>
             <label class="lab" for="i2v-backend">Backend</label>
             <select id="i2v-backend"></select>
-            <p class="note">Wan I2V on Colab (A100) gives the most photoreal motion.</p>
+            <p class="note">Wan I2V on Colab (A100) gives the most photoreal motion. Free Kaggle GPUs are text-to-video only.</p>
           </div>
           <div>
             <label class="lab" for="i2v-style">Style steering</label>
@@ -223,7 +223,7 @@
           <summary>Output &amp; sampling</summary>
           <div class="row">
             <div><label class="lab">Duration <span class="val" id="iv-dur">4s</span></label>
-              <input type="range" id="i2v-dur" min="1" max="10" step="0.5" value="4"/></div>
+              <input type="range" id="i2v-dur" min="2" max="10" step="0.5" value="4"/></div>
             <div><label class="lab">FPS <span class="val" id="iv-fps">24</span></label>
               <input type="range" id="i2v-fps" min="8" max="30" step="1" value="24"/></div>
           </div>
@@ -284,7 +284,8 @@
 <script>
 const $ = id => document.getElementById(id);
 const BACKEND_HELP = {
-  colab: 'Wan T2V + I2V on your Colab GPU (A100 = most powerful). Set COLAB_BASE_URL in .env from the notebook URL.',
+  colab: 'Wan T2V + I2V.',
+  kaggle: 'Wan T2V. I2V needs a >=30GB GPU.',
   local: 'Wan running on this machine CUDA GPU.',
   cinematic: 'GPU-free procedural cinematography - instant, stylized.',
   luma: 'Luma Dream Machine cloud API.',
@@ -337,7 +338,7 @@ async function refreshHealth() {
 function fillBackends(selectEl, status, exclude) {
   selectEl.innerHTML = '';
   let firstReady = null;
-  for (const name of ['colab','local','cinematic','luma','seedance','kling','veo']) {
+  for (const name of ['colab','kaggle','local','cinematic','luma','seedance','kling','veo']) {
     if (exclude && exclude.includes(name)) continue;
     const ready = status[name];
     const opt = document.createElement('option');
@@ -385,7 +386,7 @@ function commonPayload(prefix) {
 
 
   <footer style="margin-top:60px;text-align:center;color:var(--muted);font-size:.78rem;opacity:.7">
-    CineForge Studio · Wan T2V + I2V on Colab · Seedance &amp; Kling adapters included
+    CineForge Studio · Wan T2V + I2V on Colab / Kaggle · Seedance &amp; Kling adapters included
   </footer>
 </main>
 <div id="toast"></div>

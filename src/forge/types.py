@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import shutil
+import subprocess
 
 import cv2
 import numpy as np
@@ -54,18 +56,50 @@ class GeneratedClip:
 
     # ------------------------------------------------------------------
     def write_video(self, path, fps=None, codec=None) -> str:
-        """Write RGB frames to a .mp4/.avi via OpenCV (BGR internally)."""
+        """Write RGB frames to a .mp4/.avi.
+
+        MP4s are encoded as H.264/AAC-compatible video (via ffmpeg when
+        available) so browsers can play them directly; ``mp4v`` output from
+        OpenCV is not supported by Chrome/Firefox <video> elements.
+        """
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         fps = fps or self.fps or 24
         if codec is None:
             codec = "mp4v" if p.suffix.lower() == ".mp4" else "XVID"
+
+        if p.suffix.lower() == ".mp4" and shutil.which("ffmpeg"):
+            return self._write_video_ffmpeg(p, float(fps))
+
         bgr = np.ascontiguousarray(self.frames[:, :, :, ::-1])  # RGB -> BGR
         fourcc = cv2.VideoWriter_fourcc(*codec)
         writer = cv2.VideoWriter(str(p), fourcc, float(fps), (self.width, self.height))
         for f in bgr:
             writer.write(f)
         writer.release()
+        return str(p)
+
+    def _write_video_ffmpeg(self, p: Path, fps: float) -> str:
+        """Encode frames to browser-compatible H.264 MP4 by piping raw frames to ffmpeg."""
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-f", "rawvideo",
+            "-pix_fmt", "rgb24",
+            "-s", f"{self.width}x{self.height}",
+            "-r", str(fps),
+            "-i", "-",
+            "-an",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            str(p),
+        ]
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+        for f in self.frames:
+            proc.stdin.write(np.ascontiguousarray(f, dtype=np.uint8).tobytes())
+        proc.stdin.close()
+        if proc.wait() != 0:
+            raise RuntimeError(f"ffmpeg failed to encode {p}")
         return str(p)
 
     def to_gif(self, path, fps=12, scale=1.0) -> str:

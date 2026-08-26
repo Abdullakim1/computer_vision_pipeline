@@ -69,7 +69,7 @@ class GenerateRequest(BaseModel):
     fps: int = Field(24, ge=8, le=60, description="Frames per second")
     duration: float = Field(4.0, ge=2.0, le=20.0, description="Duration in seconds")
     backend: str = Field("cinematic", description="Generation backend")
-    seed: int = Field(None, description="Random seed for reproducibility")
+    seed: Optional[int] = Field(None, description="Random seed for reproducibility")
     look: str = Field("argo", description="Color grading preset")
     motion: str = Field("orbit", description="Camera motion")
     style: str = Field("cinematic", description="Generation style")
@@ -78,8 +78,8 @@ class GenerateRequest(BaseModel):
     @field_validator('backend')
     @classmethod
     def validate_backend(cls, v):
-        if v not in ['cinematic', 'local', 'colab', 'luma', 'seedance', 'kling', 'veo']:
-            raise ValueError("Unsupported backend. Use 'cinematic', 'local', 'colab', 'luma', 'seedance', 'kling', or 'veo'")
+        if v not in ['cinematic', 'local', 'colab', 'kaggle', 'luma', 'seedance', 'kling', 'veo']:
+            raise ValueError("Unsupported backend. Use 'cinematic', 'local', 'colab', 'kaggle', 'luma', 'seedance', 'kling', or 'veo'")
         return v
 
 
@@ -128,9 +128,10 @@ def health():
         "status": "healthy",
         "version": "2.0.0",
         "generations_count": _studio._generation_count,
-        "backends": {
+                "backends": {
             b["name"]: {
                 "ready": bool(b.get('ready')),
+                "busy": bool(b.get('busy', False)),
                 "description": b.get('desc', ''),
             } for b in backends
         },
@@ -168,7 +169,7 @@ def batch_info():
         "max_prompts": 50,
         "max_per_prompt": 10,
         "default_backend": "cinematic",
-        "supported_backends": ["cinematic", "local", "colab", "luma", "seedance", "kling"],
+        "supported_backends": ["cinematic", "local", "colab", "kaggle", "luma", "seedance", "kling"],
     }
 
 # ============================================
@@ -272,7 +273,7 @@ def batch_generate(req: BatchGenerateRequest):
 async def image_generate(
     image: UploadFile = File(..., description="Still image to animate"),
     prompt: str = Form("", description="Optional motion/guidance prompt"),
-    backend: str = Form("cinematic", description="cinematic | colab | local | kling | seedance"),
+    backend: str = Form("cinematic", description="cinematic | colab | kaggle | local | kling | seedance"),
     width: int = Form(960, ge=128, le=3840),
     height: int = Form(540, ge=128, le=2160),
     fps: int = Form(24, ge=8, le=60),
@@ -288,8 +289,9 @@ async def image_generate(
 ):
     """Generate video from a static image.
 
-    Diffusion backends (``colab``, ``local``, ``kling``, ``seedance``) run a
-    real image-to-video model; ``cinematic`` falls back to a Ken-Burns pan.
+    Diffusion backends (``colab``, ``kaggle``, ``local``, ``kling``,
+    ``seedance``) run a real image-to-video model (note: free Kaggle GPUs are
+    T2V-only); ``cinematic`` falls back to a Ken-Burns pan.
     """
     suffix = Path(image.filename or "upload.png").suffix or ".png"
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)

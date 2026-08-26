@@ -39,18 +39,25 @@ class CineForgeStudio:
         self._weights = {}
         self._generation_count = 0
 
-    # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
     @staticmethod
     def backends():
         """List available backends and their readiness."""
         info = []
-        for name in ("cinematic", "local", "colab", "luma", "seedance", "kling", "veo"):
+        for name in ("cinematic", "local", "colab", "kaggle", "luma", "seedance", "kling", "veo"):
             try:
                 b = create_backend(name)
-                info.append({"name": name, "ready": b.check(),
-                             "desc": (type(b).__doc__ or "").strip()[:100]})
+                ready = b.check()
+                entry = {"name": name, "ready": ready,
+                         "desc": (type(b).__doc__ or "").strip()[:100]}
+                # Surface the "busy" flag from remote backends (colab/kaggle)
+                # so the UI can warn the user that the server is up but
+                # currently running another generation.
+                entry["busy"] = getattr(b, "busy", False)
+                info.append(entry)
             except Exception as exc:
-                info.append({"name": name, "ready": False, "desc": str(exc)[:100]})
+                info.append({"name": name, "ready": False,
+                             "desc": str(exc)[:100], "busy": False})
         return info
 
     # ------------------------------------------------------------------
@@ -83,9 +90,10 @@ class CineForgeStudio:
                        look="argo", interp=1, **kw):
         """Animate a still image.
 
-        With a diffusion ``backend`` (``colab``/``local``/``kling``/``seedance``)
-        this dispatches the real image-to-video pipeline (Wan I2V on Colab A100
-        / local GPU, or the Seedance/Kling image-to-video APIs). With ``cinematic``
+        With a diffusion ``backend`` (``colab``/``kaggle``/``local``/``kling``/
+        ``seedance``) this dispatches the real image-to-video pipeline (Wan I2V
+        on Colab A100 / local GPU, or the Seedance/Kling image-to-video APIs).
+        Note: free Kaggle GPUs (T4/P100) are text-to-video only. With ``cinematic``
         (the default, GPU-free) it runs a Ken-Burns pan + motion-interpolation
         pass instead.
         """
@@ -95,7 +103,7 @@ class CineForgeStudio:
         image_path = str(image_path)
 
         # --- real diffusion backends ----------------------------------------
-        if backend in ("colab", "local"):
+        if backend in ("colab", "kaggle", "local"):
             obj = create_backend(backend)
             if not obj.check():
                 raise RuntimeError(f"backend {backend!r} is not ready")
@@ -147,8 +155,8 @@ class CineForgeStudio:
         if backend == "veo":
             raise RuntimeError(
                 "veo (Gemini) backend is text-to-video only — it has no "
-                "image-to-video support. Use 'colab', 'local', 'kling' or "
-                "'seedance' for image-to-video."
+                "image-to-video support. Use 'colab', 'kaggle', 'local', "
+                "'kling' or 'seedance' for image-to-video."
             )
 
         # --- cinematic fallback: GPU-free Ken Burns -------------------------

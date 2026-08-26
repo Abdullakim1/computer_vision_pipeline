@@ -37,6 +37,7 @@ CineForge is an advanced, production-ready video generation studio that bridges 
 
 ### 🌐 Cloud Integration
 - **Colab Backend (recommended, photoreal)**: [Wan](https://huggingface.co/Wan-AI) **text-to-video AND image-to-video** hosted on your **Colab GPU** — an A100 (Colab Pro) gives the most powerful output; it also falls back to a free T4. See [colab/CineForge_Colab_Video_Server.ipynb](colab/CineForge_Colab_Video_Server.ipynb)
+- **Kaggle Backend**: the same Wan server stack hosted on a **Kaggle GPU** (free T4/P100 works) behind a cloudflared tunnel. Run a notebook from [kaggle/](kaggle/), paste the printed `trycloudflare.com` URL into `.env` as `KAGGLE_BASE_URL`, then pick the **kaggle** backend. Text-to-video only on free-tier GPUs; image-to-video needs a ≥30 GB GPU.
 - **Luma Backend**: Luma AI Dream Machine API (Ray 2) for photorealistic text-to-video
 - **Seedance Backend**: ByteDance Provenance integration with style presets
 - **Kling Backend**: Kua'you Video 3.0 API with extended duration support
